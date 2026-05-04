@@ -1,0 +1,14 @@
+.env
+.nuxt
+.output
+node_modules
+storage
+参考
+--port
+*.log
+dev-server*.log
+dev-server*.err.log
+.git
+.gitignore
+Dockerfile
+docker-compose*.yml

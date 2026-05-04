@@ -1,0 +1,132 @@
+<template>
+  <header class="site-header" :class="{ 'is-scrolled': scrolled }">
+    <div class="header-panel">
+      <div class="brand">
+        <img class="brand-logo" src="/logo.png" alt="">
+        <span>{{ config.public.appName }}</span>
+      </div>
+
+      <div class="header-actions">
+        <button
+          class="icon-button favorite-filter-button"
+          :class="{ 'is-active': favoritesOnly }"
+          type="button"
+          :title="favoritesOnly ? '显示全部' : '只看收藏'"
+          @click="favoritesOnly = !favoritesOnly"
+        >
+          <Heart :size="18" :fill="favoritesOnly ? 'currentColor' : 'none'" />
+          <span v-if="userFavoriteCount > 0" class="header-badge">{{ userFavoriteCount }}</span>
+        </button>
+        <button class="icon-button" type="button" title="投诉建议" @click="feedbackOpen = true">
+          <MessageSquareWarning :size="18" />
+        </button>
+        <button v-if="session.admin" class="icon-button" type="button" title="Token 设置" @click="adminOpen = true">
+          <KeyRound :size="18" />
+        </button>
+        <button class="icon-button" type="button" :title="theme === 'dark' ? '亮色模式' : '暗色模式'" @click="toggleTheme">
+          <Sun v-if="theme === 'dark'" :size="18" />
+          <Moon v-else :size="18" />
+        </button>
+
+        <div v-if="session.user" class="popover-wrap">
+          <button class="avatar-button" type="button" @click="menuOpen = !menuOpen">
+            <img v-if="session.user.avatar" :src="session.user.avatar" alt="">
+            <span v-else class="avatar-fallback"><UserRound :size="16" /></span>
+            <span class="avatar-name">{{ session.user.name }}</span>
+          </button>
+          <div v-if="menuOpen" class="popover">
+            <button class="text-button" type="button" @click="logout">
+              <LogOut :size="16" />
+              <span>退出登录</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div v-if="feedbackOpen" class="center-modal" @click.self="feedbackOpen = false">
+    <iframe class="feedback-frame" :src="feedbackUrl" title="投诉建议" />
+  </div>
+
+  <div v-if="adminOpen" class="center-modal" @click.self="adminOpen = false">
+    <AdminPanel embedded initial-panel="tokens" @close="adminOpen = false" />
+  </div>
+</template>
+
+<script setup lang="ts">
+import {
+  Heart,
+  KeyRound,
+  LogOut,
+  MessageSquareWarning,
+  Moon,
+  Sun,
+  UserRound
+} from 'lucide-vue-next'
+
+const config = useRuntimeConfig()
+const route = useRoute()
+const scrolled = ref(false)
+const feedbackOpen = ref(false)
+const adminOpen = ref(false)
+const menuOpen = ref(false)
+const theme = ref<'light' | 'dark'>('light')
+const session = useState<any>('session', () => ({ user: null, admin: null }))
+const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
+const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
+
+const feedbackUrl = computed(() => {
+  const url = new URL('/feedback', config.public.zrPortalUrl)
+  if (config.public.zrServiceSlug) url.searchParams.set('service_slug', config.public.zrServiceSlug)
+  url.searchParams.set('embed', '1')
+  return url.toString()
+})
+
+onMounted(async () => {
+  initTheme()
+  await refreshSession()
+
+  if (!session.value.user && route.path === '/') {
+    redirectToLogin()
+  }
+
+  const onScroll = () => {
+    scrolled.value = window.scrollY > 36
+  }
+  onScroll()
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
+})
+
+async function refreshSession() {
+  const data = await $fetch('/api/session').catch(() => ({ user: null, admin: null }))
+  session.value = data
+}
+
+function initTheme() {
+  const routeTheme = route.query.theme === 'dark' || route.query.theme === 'light' ? route.query.theme : null
+  const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('theme') : null
+  const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  theme.value = (routeTheme || stored || (systemDark ? 'dark' : 'light')) as 'light' | 'dark'
+  applyTheme()
+}
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  localStorage.setItem('theme', theme.value)
+  applyTheme()
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = theme.value
+}
+
+function redirectToLogin() {
+  window.location.href = `/api/auth/login?next=${encodeURIComponent(route.fullPath || '/')}`
+}
+
+function logout() {
+  window.location.href = '/api/auth/logout'
+}
+</script>

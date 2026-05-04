@@ -1,0 +1,12 @@
+.nuxt
+.output
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+storage
+*.log
+--port
+参考

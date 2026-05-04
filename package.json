@@ -1,0 +1,39 @@
+{
+  "name": "zr-ai-image-gallery",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 0.0.0.0",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "import:test": "node scripts/import-test-data.mjs",
+    "test": "node tests/prompt-quality.test.mjs",
+    "typecheck": "nuxi typecheck",
+    "docs:dev": "vitepress dev docs --host 0.0.0.0",
+    "docs:build": "vitepress build docs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "lucide-vue-next": "^0.468.0",
+    "nuxt": "^3.16.2",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "prisma": "^6.7.0",
+    "typescript": "^5.8.3",
+    "vue-tsc": "^2.2.10",
+    "vitepress": "^1.6.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "c12": "3.3.4",
+      "perfect-debounce": "2.1.0"
+    }
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

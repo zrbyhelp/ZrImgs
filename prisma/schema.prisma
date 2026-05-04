@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum ImageSource {
+  FIXTURE
+  THIRD_PARTY
+  ADMIN
+}
+
+model ImageSet {
+  id                  String          @id @default(cuid())
+  externalId          String?         @unique
+  userId              String?
+  userAccount         String?
+  userEmail           String?
+  userUsername        String?
+  userName            String?
+  prompt              String          @db.LongText
+  revisedPrompts      Json?
+  params              Json?
+  requestedImageCount Int             @default(0)
+  inputImageCount     Int             @default(0)
+  referenceImages     Json?
+  maskUsed            Boolean         @default(false)
+  apiProvider         String?
+  apiModel            String?
+  generationStatus    String?
+  error               String?         @db.Text
+  source              ImageSource     @default(FIXTURE)
+  reviewStatus        ReviewStatus    @default(PUBLISHED)
+  generatedAt         DateTime?
+  finishedAt          DateTime?
+  elapsed             Int?
+  actualParams        Json?
+  sourceTokenId       String?
+  sourceToken         UploadToken?    @relation(fields: [sourceTokenId], references: [id], onDelete: SetNull)
+  images              ImageFile[]
+  favorites           ImageFavorite[]
+  auditLogs           AdminAuditLog[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([reviewStatus, createdAt])
+  @@index([source, createdAt])
+  @@index([sourceTokenId])
+}
+
+model ImageFile {
+  id          String   @id @default(cuid())
+  externalId  String?
+  imageSetId  String
+  imageSet    ImageSet @relation(fields: [imageSetId], references: [id], onDelete: Cascade)
+  fileName    String
+  storagePath String   @db.Text
+  mime        String
+  size        Int
+  hash        String
+  width       Int?
+  height      Int?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([imageSetId, sortOrder])
+  @@index([imageSetId, sortOrder])
+  @@index([hash])
+}
+
+model ImageFavorite {
+  id         String   @id @default(cuid())
+  userId     String
+  imageSetId String
+  imageSet   ImageSet @relation(fields: [imageSetId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, imageSetId])
+  @@index([userId, createdAt])
+  @@index([imageSetId])
+}
+
+model UploadToken {
+  id          String     @id @default(cuid())
+  name        String
+  tokenHash   String     @unique
+  tokenPrefix String
+  enabled     Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  submissions ImageSet[]
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  imageSetId  String?
+  imageSet    ImageSet? @relation(fields: [imageSetId], references: [id], onDelete: SetNull)
+  adminName   String
+  action      String
+  targetType  String
+  targetId    String
+  detail      Json?
+  createdAt   DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([imageSetId])
+}

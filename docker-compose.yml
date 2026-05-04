@@ -1,0 +1,81 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zr-ai-image-gallery:latest
+    container_name: zr-ai-images-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:${APP_PORT:-3000}"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "${APP_PORT:-3000}"
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: "${APP_PORT:-3000}"
+      DATABASE_URL: "mysql://${MYSQL_USER:-zr_ai_user}:${MYSQL_PASSWORD:-zr_ai_password}@mysql:3306/${MYSQL_DATABASE:-zr_ai_images}"
+      SESSION_SECRET: "${SESSION_SECRET:-replace-with-a-long-random-secret}"
+      NUXT_SESSION_SECRET: "${SESSION_SECRET:-replace-with-a-long-random-secret}"
+      IMAGE_STORAGE_DIR: /app/storage/images
+      NUXT_IMAGE_STORAGE_DIR: /app/storage/images
+      ZR_PORTAL_URL: "${ZR_PORTAL_URL:-https://zrg.zrbyhelp.com}"
+      NUXT_ZR_PORTAL_URL: "${ZR_PORTAL_URL:-https://zrg.zrbyhelp.com}"
+      ZR_CLIENT_ID: "${ZR_CLIENT_ID:-}"
+      NUXT_ZR_CLIENT_ID: "${ZR_CLIENT_ID:-}"
+      NUXT_PUBLIC_ZR_CLIENT_ID: "${ZR_CLIENT_ID:-}"
+      ZR_CLIENT_SECRET: "${ZR_CLIENT_SECRET:-}"
+      NUXT_ZR_CLIENT_SECRET: "${ZR_CLIENT_SECRET:-}"
+      ZR_CALLBACK_URL: "${ZR_CALLBACK_URL:-}"
+      NUXT_ZR_CALLBACK_URL: "${ZR_CALLBACK_URL:-}"
+      ZR_SERVICE_SLUG: "${ZR_SERVICE_SLUG:-}"
+      NUXT_PUBLIC_ZR_SERVICE_SLUG: "${ZR_SERVICE_SLUG:-}"
+      NUXT_ADMIN_ACCOUNTS: "${NUXT_ADMIN_ACCOUNTS:-}"
+      NUXT_ADMIN_EMAILS: "${NUXT_ADMIN_EMAILS:-}"
+      UPLOAD_MAX_BYTES: "${UPLOAD_MAX_BYTES:-31457280}"
+      NUXT_UPLOAD_MAX_BYTES: "${UPLOAD_MAX_BYTES:-31457280}"
+      NUXT_PUBLIC_APP_NAME: "${NUXT_PUBLIC_APP_NAME:-ZR AI Images}"
+      NUXT_PUBLIC_ZR_PORTAL_URL: "${ZR_PORTAL_URL:-https://zrg.zrbyhelp.com}"
+    volumes:
+      - ./storage/images:/app/storage/images
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const port = process.env.PORT || 3000; fetch('http://127.0.0.1:' + port + '/api/session').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mysql:
+    image: mysql:8.4
+    container_name: zr-ai-images-mysql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-zr_ai_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zr_ai_images}
+      MYSQL_USER: ${MYSQL_USER:-zr_ai_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zr_ai_password}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
