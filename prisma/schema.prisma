@@ -90,15 +90,16 @@ model ImageFavorite {
 }
 
 model UploadToken {
-  id          String     @id @default(cuid())
-  name        String
-  tokenHash   String     @unique
-  tokenPrefix String
-  enabled     Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  lastUsedAt  DateTime?
-  revokedAt   DateTime?
-  submissions ImageSet[]
+  id             String     @id @default(cuid())
+  name           String
+  tokenHash      String     @unique
+  tokenPrefix    String
+  enabled        Boolean    @default(true)
+  reviewRequired Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  submissions    ImageSet[]
 }
 
 model AdminAuditLog {

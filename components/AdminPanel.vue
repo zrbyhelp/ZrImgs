@@ -31,6 +31,13 @@
             <input id="tokenName" v-model="tokenName" placeholder="渠道或应用名称">
           </div>
           <div class="field">
+            <label for="tokenReviewRequired">审核策略</label>
+            <select id="tokenReviewRequired" v-model="tokenReviewRequired">
+              <option :value="true">上传后待审</option>
+              <option :value="false">上传后直接发布</option>
+            </select>
+          </div>
+          <div class="field">
             <label>&nbsp;</label>
             <button class="text-button" type="submit">创建</button>
           </div>
@@ -45,6 +52,7 @@
               <div class="admin-meta">
                 <span>{{ token.tokenPrefix }}...</span>
                 <span>{{ token.enabled ? '启用' : '停用' }}</span>
+                <span>{{ token.reviewRequired ? '上传后待审' : '直接发布' }}</span>
                 <span>创建 {{ formatDate(token.createdAt) }}</span>
                 <span v-if="token.lastUsedAt">使用 {{ formatDate(token.lastUsedAt) }}</span>
               </div>
@@ -52,6 +60,9 @@
             <div class="admin-actions">
               <button class="text-button" type="button" @click="setTokenEnabled(token, !token.enabled)">
                 {{ token.enabled ? '停用' : '启用' }}
+              </button>
+              <button class="text-button" type="button" @click="setTokenReviewRequired(token, !token.reviewRequired)">
+                {{ token.reviewRequired ? '设为免审' : '设为待审' }}
               </button>
               <button class="text-button danger" type="button" @click="revokeToken(token)">删除</button>
             </div>
@@ -114,6 +125,7 @@ const activePanel = ref<'submissions' | 'tokens'>(props.initialPanel)
 const tokens = ref<any[]>([])
 const submissions = ref<any[]>([])
 const tokenName = ref('')
+const tokenReviewRequired = ref(true)
 const createdToken = ref('')
 const status = ref('PENDING')
 
@@ -138,15 +150,21 @@ async function createToken() {
   if (!tokenName.value.trim()) return
   const data = await $fetch<any>('/api/admin/tokens', {
     method: 'POST',
-    body: { name: tokenName.value.trim() }
+    body: { name: tokenName.value.trim(), reviewRequired: tokenReviewRequired.value }
   })
   createdToken.value = data.token
   tokenName.value = ''
+  tokenReviewRequired.value = true
   await loadTokens()
 }
 
 async function setTokenEnabled(token: any, enabled: boolean) {
   await $fetch(`/api/admin/tokens/${token.id}`, { method: 'PATCH', body: { enabled } })
+  await loadTokens()
+}
+
+async function setTokenReviewRequired(token: any, reviewRequired: boolean) {
+  await $fetch(`/api/admin/tokens/${token.id}`, { method: 'PATCH', body: { reviewRequired } })
   await loadTokens()
 }
 

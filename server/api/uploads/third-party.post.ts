@@ -51,6 +51,7 @@ export default defineEventHandler(async (event) => {
   const params = parseJsonField(readTextField(form, 'params'), {})
   const model = readTextField(form, 'model') || null
   const provider = readTextField(form, 'provider') || null
+  const reviewStatus = token.reviewRequired ? 'PENDING' : 'PUBLISHED'
 
   const imageSet = await prisma.imageSet.create({
     data: {
@@ -72,7 +73,7 @@ export default defineEventHandler(async (event) => {
       apiModel: model,
       generationStatus: 'uploaded',
       source: 'THIRD_PARTY',
-      reviewStatus: 'PENDING',
+      reviewStatus,
       sourceTokenId: token.id,
       images: {
         create: savedImages.map((image, index) => ({

@@ -10,7 +10,7 @@ Authorization: Bearer <upload-token>
 Content-Type: multipart/form-data
 ```
 
-`upload-token` 由图库管理员在后台 Token 页面创建和停用。Token 只应保存在第三方服务端，不要放到浏览器前端。
+`upload-token` 由图库管理员在后台 Token 页面创建、停用，并设置上传内容是否需要审核。Token 只应保存在第三方服务端，不要放到浏览器前端。
 
 ## 表单字段
 
@@ -48,7 +48,7 @@ curl -X POST "http://localhost:3001/api/uploads/third-party" \
 }
 ```
 
-第三方上传内容默认进入待审核状态，管理员审核通过后才会展示在公开图库。
+`reviewStatus` 由上传 Token 的审核策略决定。默认 Token 上传后进入 `PENDING`，管理员审核通过后才会展示在公开图库；免审 Token 上传后会直接返回 `PUBLISHED` 并展示在公开图库。
 
 ## 常见失败
 

@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
       name: true,
       tokenPrefix: true,
       enabled: true,
+      reviewRequired: true,
       createdAt: true,
       lastUsedAt: true,
       revokedAt: true

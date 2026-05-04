@@ -3,8 +3,9 @@ import { prisma } from '../../../utils/prisma'
 
 export default defineEventHandler(async (event) => {
   const admin = requireAdmin(event)
-  const body = await readBody<{ name?: string }>(event)
+  const body = await readBody<{ name?: string; reviewRequired?: boolean }>(event)
   const name = String(body.name || '').trim()
+  const reviewRequired = typeof body.reviewRequired === 'boolean' ? body.reviewRequired : true
 
   if (!name) {
     throw createError({ statusCode: 400, statusMessage: 'Token name is required' })
@@ -15,7 +16,8 @@ export default defineEventHandler(async (event) => {
     data: {
       name,
       tokenHash: sha256(plaintext),
-      tokenPrefix: plaintext.slice(0, 18)
+      tokenPrefix: plaintext.slice(0, 18),
+      reviewRequired
     }
   })
 
@@ -25,7 +27,7 @@ export default defineEventHandler(async (event) => {
       action: 'CREATE_TOKEN',
       targetType: 'upload_token',
       targetId: token.id,
-      detail: { name }
+      detail: { name, reviewRequired }
     }
   })
 
@@ -36,6 +38,7 @@ export default defineEventHandler(async (event) => {
       name: token.name,
       tokenPrefix: token.tokenPrefix,
       enabled: token.enabled,
+      reviewRequired: token.reviewRequired,
       createdAt: token.createdAt.toISOString(),
       lastUsedAt: null,
       revokedAt: null
