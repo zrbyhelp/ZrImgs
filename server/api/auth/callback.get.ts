@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
       clientSecret: config.zrClientSecret,
       code
     }
-  }).catch((error) => {
+  }).catch((error: any) => {
     throw createError({
       statusCode: 502,
       statusMessage: error?.data?.message || error?.message || 'Failed to exchange login code'
