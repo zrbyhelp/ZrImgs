@@ -99,6 +99,12 @@ button {
   pointer-events: none;
 }
 
+.site-header.is-scrolled .header-search,
+.site-header.is-scrolled .header-actions > *,
+.site-header.is-scrolled .popover {
+  pointer-events: auto;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -110,6 +116,7 @@ button {
 
 .site-header.is-scrolled .brand {
   opacity: 0;
+  pointer-events: none;
 }
 
 .header-search {
