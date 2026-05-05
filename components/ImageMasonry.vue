@@ -1,5 +1,11 @@
 <template>
-  <div class="gallery" :style="{ '--gallery-columns': String(columnCount) }">
+  <div
+    class="gallery"
+    :style="{
+      '--gallery-columns': String(columnCount),
+      '--gallery-gap': galleryGap
+    }"
+  >
     <TransitionGroup
       v-for="(column, columnIndex) in columns"
       :key="columnIndex"
@@ -69,6 +75,8 @@
 <script setup lang="ts">
 import { Heart, Trash2 } from 'lucide-vue-next'
 
+type GalleryDensity = 'regular' | 'compact' | 'dense'
+
 const props = defineProps<{ items: any[] }>()
 defineEmits<{
   open: [item: any]
@@ -77,9 +85,17 @@ defineEmits<{
 }>()
 
 const loaded = reactive<Record<string, boolean>>({})
-const columnCount = ref(5)
+const viewportWidth = ref(1200)
 const session = useState<any>('session', () => ({ user: null, admin: null }))
+const galleryDensity = useState<GalleryDensity>('galleryDensity', () => 'regular')
 const { downloadImage } = useImageDownload()
+const columnCount = computed(() => columnCountForWidth(viewportWidth.value, galleryDensity.value))
+const galleryGap = computed(() => {
+  if (viewportWidth.value <= 560) return '6px'
+  if (galleryDensity.value === 'dense') return '6px'
+  if (galleryDensity.value === 'compact') return '7px'
+  return '8px'
+})
 const columns = computed(() => buildColumns(props.items, columnCount.value))
 const isAdmin = computed(() => Boolean(session.value.admin))
 
@@ -126,10 +142,19 @@ function shortestColumnIndex(heights: number[]) {
 }
 
 function updateColumnCount() {
-  const width = window.innerWidth
-  if (width <= 560) columnCount.value = 2
-  else if (width <= 860) columnCount.value = 3
-  else if (width <= 1180) columnCount.value = 4
-  else columnCount.value = 5
+  viewportWidth.value = window.innerWidth
+}
+
+function columnCountForWidth(width: number, density: GalleryDensity) {
+  if (width <= 560) return 2
+  if (width <= 860) return density === 'regular' ? 3 : 4
+  if (width <= 1180) {
+    if (density === 'dense') return 6
+    if (density === 'compact') return 5
+    return 4
+  }
+  if (density === 'dense') return 7
+  if (density === 'compact') return 6
+  return 5
 }
 </script>

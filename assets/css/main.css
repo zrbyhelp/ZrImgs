@@ -7,8 +7,8 @@
   --border: rgba(24, 29, 38, 0.14);
   --text: #171b22;
   --muted: rgba(23, 27, 34, 0.62);
-  --accent: #176b5c;
-  --accent-2: #2459a7;
+  --accent: #f88040;
+  --accent-2: #b45309;
   --danger: #b42318;
   --warning: #a15c07;
   --shadow: 0 16px 42px rgba(17, 24, 39, 0.12);
@@ -23,8 +23,8 @@ html[data-theme='dark'] {
   --border: rgba(232, 236, 243, 0.16);
   --text: #edf0f5;
   --muted: rgba(237, 240, 245, 0.66);
-  --accent: #6cc4aa;
-  --accent-2: #86aee9;
+  --accent: #ffa45f;
+  --accent-2: #ffbf86;
   --danger: #ff9b90;
   --warning: #f0b15a;
   --shadow: 0 18px 52px rgba(0, 0, 0, 0.34);
@@ -96,6 +96,7 @@ button {
   border-color: transparent;
   box-shadow: none;
   backdrop-filter: none;
+  pointer-events: none;
 }
 
 .brand {
@@ -112,34 +113,56 @@ button {
 }
 
 .header-search {
+  position: relative;
   display: flex;
   align-items: center;
-  flex: 1 1 420px;
-  max-width: 520px;
-  min-width: 180px;
-  margin: 0 auto;
+  flex: 0 1 260px;
+  width: clamp(176px, 19vw, 260px);
+  min-width: 176px;
+  height: 38px;
+  margin: 0 6px 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .header-search__input {
   width: 100%;
   min-width: 0;
-  height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-right: 0;
-  border-radius: 8px 0 0 8px;
+  height: 100%;
+  padding: 0 48px 0 16px;
+  border: 0;
+  border-radius: 999px;
   outline: 0;
-  background: var(--surface-strong);
+  background: transparent;
   color: var(--text);
 }
 
-.header-search__input:focus {
+.header-search:focus-within {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .header-search__button {
-  flex: 0 0 auto;
-  border-radius: 0 8px 8px 0;
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  min-width: 34px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  transform: translateY(-50%);
+}
+
+.header-search__button:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 88%, #ffffff);
+  transform: translateY(-50%);
 }
 
 .brand-logo {
@@ -153,8 +176,9 @@ button {
 .header-actions {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 8px;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .icon-button,
@@ -178,10 +202,65 @@ button {
   padding: 0;
 }
 
+.icon-button.header-search__button {
+  min-width: 34px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .icon-button:hover,
 .text-button:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+.icon-button.header-search__button:hover {
+  transform: translateY(-50%);
+}
+
+.density-control {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.density-control__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.density-control__button:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.density-control__button.is-active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+html[data-theme='dark'] .density-control__button.is-active {
+  color: #101218;
 }
 
 .avatar-button {
@@ -597,18 +676,38 @@ button {
 
 @media (max-width: 560px) {
   .app-page {
-    padding: 112px 8px 18px;
+    padding: 64px 8px 18px;
   }
 
   .header-panel {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 10px 8px;
   }
 
   .header-search {
-    order: 3;
-    flex-basis: 100%;
+    order: initial;
+    flex: 1 1 84px;
+    width: auto;
     max-width: none;
-    min-width: 0;
+    min-width: 74px;
+    height: 36px;
+    margin: 0;
+  }
+
+  .header-search__input {
+    padding: 0 42px 0 11px;
+    font-size: 13px;
+  }
+
+  .header-search__button {
+    min-width: 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .density-control {
+    display: none;
   }
 
   .gallery {
@@ -625,24 +724,35 @@ button {
     display: none;
   }
 
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
   .header-actions {
-    gap: 6px;
+    gap: 4px;
   }
 
   .icon-button,
   .text-button,
   .avatar-button {
-    min-width: 36px;
-    height: 36px;
+    min-width: 32px;
+    height: 32px;
+  }
+
+  .icon-button.header-search__button {
+    min-width: 30px;
+    width: 30px;
+    height: 30px;
   }
 }
 
 body {
-  background: linear-gradient(135deg, #f8fafc 0%, #f4f1eb 44%, #edf7f6 100%);
+  background: linear-gradient(135deg, #f8fafc 0%, #f7f3ef 44%, #fff3ed 100%);
 }
 
 html[data-theme='dark'] body {
-  background: linear-gradient(135deg, #18181b 0%, #20222a 46%, #172525 100%);
+  background: linear-gradient(135deg, #18181b 0%, #20222a 46%, #2a211d 100%);
 }
 
 #__nuxt {
@@ -655,11 +765,11 @@ html[data-theme='dark'] body {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: linear-gradient(135deg, #f8fafc 0%, #f4f1eb 44%, #edf7f6 100%);
+  background: linear-gradient(135deg, #f8fafc 0%, #f7f3ef 44%, #fff3ed 100%);
 }
 
 html[data-theme='dark'] .portal-background {
-  background: linear-gradient(135deg, #18181b 0%, #20222a 46%, #172525 100%);
+  background: linear-gradient(135deg, #18181b 0%, #20222a 46%, #2a211d 100%);
 }
 
 .portal-background__canvas,
@@ -1001,7 +1111,7 @@ html[data-theme='dark'] .portal-background__veil {
 
 @media (max-width: 560px) {
   .app-page {
-    padding: 112px 0 18px;
+    padding: 64px 0 18px;
   }
 
   .gallery {
@@ -1034,14 +1144,14 @@ html[data-theme='dark'] .portal-background__veil {
   display: grid;
   grid-template-columns: repeat(var(--gallery-columns, 5), minmax(0, 1fr));
   align-items: start;
-  gap: 8px;
+  gap: var(--gallery-gap, 8px);
   column-count: initial;
 }
 
 .gallery-column {
   position: relative;
   display: grid;
-  gap: 8px;
+  gap: var(--gallery-gap, 8px);
   align-content: start;
   min-width: 0;
 }

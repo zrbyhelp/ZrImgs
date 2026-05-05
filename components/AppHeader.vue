@@ -20,6 +20,20 @@
       </form>
 
       <div class="header-actions">
+        <div class="density-control" role="group" aria-label="列表密度">
+          <button
+            v-for="option in densityOptions"
+            :key="option.value"
+            class="density-control__button"
+            :class="{ 'is-active': galleryDensity === option.value }"
+            type="button"
+            :title="option.title"
+            :aria-pressed="galleryDensity === option.value"
+            @click="galleryDensity = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
         <button
           class="icon-button favorite-filter-button"
           :class="{ 'is-active': favoritesOnly }"
@@ -79,6 +93,8 @@ import {
   UserRound
 } from 'lucide-vue-next'
 
+type GalleryDensity = 'regular' | 'compact' | 'dense'
+
 const config = useRuntimeConfig()
 const route = useRoute()
 const scrolled = ref(false)
@@ -91,6 +107,12 @@ const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
 const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
 const searchDraft = useState<string>('gallerySearchDraft', () => '')
 const searchQuery = useState<string>('gallerySearchQuery', () => '')
+const galleryDensity = useState<GalleryDensity>('galleryDensity', () => 'regular')
+const densityOptions = [
+  { value: 'regular', label: '常规', title: '常规密度' },
+  { value: 'compact', label: '中高', title: '中高密度' },
+  { value: 'dense', label: '超高', title: '超高密度' }
+] satisfies Array<{ value: GalleryDensity, label: string, title: string }>
 
 const feedbackUrl = computed(() => {
   const url = new URL('/feedback', config.public.zrPortalUrl)
@@ -101,6 +123,7 @@ const feedbackUrl = computed(() => {
 
 onMounted(async () => {
   initTheme()
+  initGalleryDensity()
   await refreshSession()
 
   if (!session.value.user && route.path === '/') {
@@ -115,6 +138,11 @@ onMounted(async () => {
   onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 })
 
+watch(galleryDensity, (value) => {
+  if (!import.meta.client) return
+  localStorage.setItem('galleryDensity', value)
+})
+
 async function refreshSession() {
   const data = await $fetch('/api/session').catch(() => ({ user: null, admin: null }))
   session.value = data
@@ -126,6 +154,17 @@ function initTheme() {
   const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
   theme.value = (routeTheme || stored || (systemDark ? 'dark' : 'light')) as 'light' | 'dark'
   applyTheme()
+}
+
+function initGalleryDensity() {
+  const stored = localStorage.getItem('galleryDensity')
+  if (isGalleryDensity(stored)) {
+    galleryDensity.value = stored
+  }
+}
+
+function isGalleryDensity(value: string | null): value is GalleryDensity {
+  return value === 'regular' || value === 'compact' || value === 'dense'
 }
 
 function toggleTheme() {
