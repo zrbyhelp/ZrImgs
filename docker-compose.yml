@@ -20,8 +20,22 @@ services:
       DATABASE_URL: "mysql://${MYSQL_USER:-zr_ai_user}:${MYSQL_PASSWORD:-zr_ai_password}@mysql:3306/${MYSQL_DATABASE:-zr_ai_images}"
       SESSION_SECRET: "${SESSION_SECRET:-replace-with-a-long-random-secret}"
       NUXT_SESSION_SECRET: "${SESSION_SECRET:-replace-with-a-long-random-secret}"
-      IMAGE_STORAGE_DIR: /app/storage/images
-      NUXT_IMAGE_STORAGE_DIR: /app/storage/images
+      IMAGE_STORAGE_DRIVER: "${IMAGE_STORAGE_DRIVER:-r2}"
+      NUXT_IMAGE_STORAGE_DRIVER: "${IMAGE_STORAGE_DRIVER:-r2}"
+      R2_ACCOUNT_ID: "${R2_ACCOUNT_ID:-}"
+      NUXT_R2_ACCOUNT_ID: "${R2_ACCOUNT_ID:-}"
+      R2_ENDPOINT: "${R2_ENDPOINT:-}"
+      NUXT_R2_ENDPOINT: "${R2_ENDPOINT:-}"
+      R2_BUCKET: "${R2_BUCKET:-}"
+      NUXT_R2_BUCKET: "${R2_BUCKET:-}"
+      R2_ACCESS_KEY_ID: "${R2_ACCESS_KEY_ID:-}"
+      NUXT_R2_ACCESS_KEY_ID: "${R2_ACCESS_KEY_ID:-}"
+      R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"
+      NUXT_R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"
+      R2_REGION: "${R2_REGION:-auto}"
+      NUXT_R2_REGION: "${R2_REGION:-auto}"
+      R2_SIGNED_URL_TTL_SECONDS: "${R2_SIGNED_URL_TTL_SECONDS:-900}"
+      NUXT_R2_SIGNED_URL_TTL_SECONDS: "${R2_SIGNED_URL_TTL_SECONDS:-900}"
       ZR_PORTAL_URL: "${ZR_PORTAL_URL:-https://zrg.zrbyhelp.com}"
       NUXT_ZR_PORTAL_URL: "${ZR_PORTAL_URL:-https://zrg.zrbyhelp.com}"
       ZR_CLIENT_ID: "${ZR_CLIENT_ID:-}"
@@ -39,8 +53,6 @@ services:
       NUXT_UPLOAD_MAX_BYTES: "${UPLOAD_MAX_BYTES:-31457280}"
       NUXT_PUBLIC_APP_NAME: "${NUXT_PUBLIC_APP_NAME:-ZR AI Images}"
       NUXT_PUBLIC_ZR_PORTAL_URL: "${ZR_PORTAL_URL:-https://zrg.zrbyhelp.com}"
-    volumes:
-      - ./storage/images:/app/storage/images
     healthcheck:
       test:
         [

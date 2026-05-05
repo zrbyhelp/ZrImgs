@@ -56,10 +56,10 @@ function normalizeReferenceImages(value: unknown) {
   return value
     .map((image: any, index) => {
       if (!image || typeof image !== 'object') return null
-      const url = typeof image.url === 'string'
-        ? image.url
-        : typeof image.storagePath === 'string'
-          ? mediaUrl(image.storagePath)
+      const url = typeof image.storagePath === 'string'
+        ? mediaUrl(image.storagePath)
+        : typeof image.url === 'string'
+          ? image.url
           : ''
 
       return {

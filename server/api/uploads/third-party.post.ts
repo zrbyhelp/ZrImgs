@@ -1,7 +1,7 @@
 import { evaluatePromptQuality } from '~~/shared/prompt-quality.mjs'
 import { sha256 } from '../../utils/crypto'
 import { prisma } from '../../utils/prisma'
-import { mediaUrl, saveImageBuffer } from '../../utils/storage'
+import { saveImageBuffer } from '../../utils/storage'
 
 export default defineEventHandler(async (event) => {
   const tokenValue = getBearerToken(getHeader(event, 'authorization'))
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
       inputImageCount: savedReferences.length,
       referenceImages: savedReferences.map((image) => ({
         fileName: image.fileName,
-        url: mediaUrl(image.storagePath),
+        storagePath: image.storagePath,
         mime: image.mime,
         size: image.size,
         hash: image.hash,

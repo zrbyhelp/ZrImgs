@@ -24,11 +24,28 @@ export interface AdminUser {
   userId?: string
 }
 
+const LOCAL_USER: GalleryUser = {
+  id: 'local-user',
+  name: 'Local User',
+  account: 'local',
+  email: 'local@example.local',
+  avatar: null,
+  raw: { source: 'local-auth-bypass' }
+}
+
+const LOCAL_ADMIN: AdminUser = {
+  name: LOCAL_USER.name,
+  account: LOCAL_USER.account,
+  email: LOCAL_USER.email,
+  userId: LOCAL_USER.id
+}
+
 export function setUserSession(event: H3Event, user: GalleryUser) {
   setSignedCookie(event, USER_COOKIE, user, USER_MAX_AGE)
 }
 
 export function getUserSession(event: H3Event): GalleryUser | null {
+  if (isLocalAuthBypassEnabled()) return getLocalUser()
   return getSignedCookie<GalleryUser>(event, USER_COOKIE)
 }
 
@@ -45,6 +62,7 @@ export function clearUserSession(event: H3Event) {
 }
 
 export function getAdminSession(event: H3Event): AdminUser | null {
+  if (isLocalAuthBypassEnabled()) return getLocalAdmin()
   return getAdminForUser(getUserSession(event))
 }
 
@@ -65,8 +83,13 @@ export function isAdminUser(user: GalleryUser | null | undefined) {
   return Boolean(getAdminForUser(user))
 }
 
+export function isLocalAuthBypassEnabled() {
+  return readBooleanFlag(useRuntimeConfig().localAuthBypass, false)
+}
+
 function getAdminForUser(user: GalleryUser | null | undefined): AdminUser | null {
   if (!user) return null
+  if (isLocalAuthBypassEnabled() && user.id === LOCAL_USER.id) return getLocalAdmin()
 
   const config = useRuntimeConfig()
   const accounts = splitRuntimeList(config.adminAccounts)
@@ -83,6 +106,14 @@ function getAdminForUser(user: GalleryUser | null | undefined): AdminUser | null
     email: user.email || null,
     userId: user.id
   }
+}
+
+function getLocalUser(): GalleryUser {
+  return { ...LOCAL_USER, raw: { source: 'local-auth-bypass' } }
+}
+
+function getLocalAdmin(): AdminUser {
+  return { ...LOCAL_ADMIN }
 }
 
 function splitRuntimeList(value: unknown) {
@@ -125,6 +156,16 @@ function getSignedCookie<T>(event: H3Event, name: string): T | null {
   } catch {
     return null
   }
+}
+
+function readBooleanFlag(value: unknown, fallback: boolean) {
+  if (typeof value === 'boolean') return value
+
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return fallback
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false
+  return fallback
 }
 
 function getSecret() {

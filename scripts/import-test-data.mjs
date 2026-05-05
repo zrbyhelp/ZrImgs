@@ -1,15 +1,18 @@
 import { PrismaClient } from '@prisma/client'
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
-import { copyFile, mkdir, readFile, stat } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inferImageMetadata } from '../shared/image-metadata.mjs'
+import { putS3Object } from '../shared/s3-client.mjs'
 
-const prisma = new PrismaClient()
 const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+loadDotEnv(path.join(cwd, '.env'))
+const prisma = new PrismaClient()
 const manifestPath = path.resolve(cwd, process.argv[2] || '参考/test/manifest.json')
 const manifestDir = path.dirname(manifestPath)
+const storageDriver = String(process.env.IMAGE_STORAGE_DRIVER || 'r2').trim().toLowerCase()
 const storageRoot = path.resolve(cwd, process.env.IMAGE_STORAGE_DIR || 'storage/images')
 
 async function main() {
@@ -18,7 +21,7 @@ async function main() {
   let importedSets = 0
   let importedFiles = 0
 
-  await mkdir(path.join(storageRoot, 'fixture'), { recursive: true })
+  await ensureLocalDirectory(path.join(storageRoot, 'fixture'))
 
   for (const item of items) {
     const outputImages = Array.isArray(item.outputImages) ? item.outputImages : []
@@ -89,11 +92,11 @@ async function main() {
       const relativeStoragePath = path.posix.join('fixture', fileName)
       const destination = path.join(storageRoot, relativeStoragePath)
       const fileStat = await stat(source)
-      const sample = await readFile(source)
-      const metadata = inferImageMetadata(sample, image.mime)
-      const hash = image.hash || await sha256File(source)
+      const buffer = await readFile(source)
+      const metadata = inferImageMetadata(buffer, image.mime)
+      const hash = image.hash || sha256Buffer(buffer)
 
-      await copyFile(source, destination)
+      await persistImageBuffer(relativeStoragePath, buffer, metadata.mime, destination)
       await prisma.imageFile.create({
         data: {
           externalId: image.id || null,
@@ -122,7 +125,7 @@ async function importReferenceImages(item) {
   if (references.length === 0) return []
 
   const saved = []
-  await mkdir(path.join(storageRoot, 'fixture', 'references'), { recursive: true })
+  await ensureLocalDirectory(path.join(storageRoot, 'fixture', 'references'))
 
   for (const [index, image] of references.entries()) {
     if (image.url && !image.exportPath && !image.relativePath && !image.fileName) {
@@ -145,11 +148,11 @@ async function importReferenceImages(item) {
     const relativeStoragePath = path.posix.join('fixture', 'references', `${item.id}-${index + 1}-${fileName}`)
     const destination = path.join(storageRoot, relativeStoragePath)
     const fileStat = await stat(source)
-    const sample = await readFile(source)
-    const metadata = inferImageMetadata(sample, image.mime)
-    const hash = image.hash || await sha256File(source)
+    const buffer = await readFile(source)
+    const metadata = inferImageMetadata(buffer, image.mime)
+    const hash = image.hash || sha256Buffer(buffer)
 
-    await copyFile(source, destination)
+    await persistImageBuffer(relativeStoragePath, buffer, metadata.mime, destination)
     saved.push({
       id: image.id || `${item.id}-reference-${index + 1}`,
       fileName,
@@ -166,14 +169,60 @@ async function importReferenceImages(item) {
   return saved
 }
 
-async function sha256File(file) {
-  return await new Promise((resolve, reject) => {
-    const hash = createHash('sha256')
-    const stream = createReadStream(file)
-    stream.on('error', reject)
-    stream.on('data', (chunk) => hash.update(chunk))
-    stream.on('end', () => resolve(hash.digest('hex')))
+async function persistImageBuffer(storagePath, buffer, mime, localDestination) {
+  if (storageDriver === 'local') {
+    await mkdir(path.dirname(localDestination), { recursive: true })
+    await writeFile(localDestination, buffer)
+    return
+  }
+
+  await putS3Object(getR2StorageConfig(), storagePath, buffer, {
+    contentType: mime,
+    cacheControl: 'private, max-age=31536000, immutable'
   })
+}
+
+async function ensureLocalDirectory(directory) {
+  if (storageDriver === 'local') {
+    await mkdir(directory, { recursive: true })
+  }
+}
+
+function getR2StorageConfig() {
+  return {
+    endpoint: firstEnv('R2_ENDPOINT', 'CLOUDFLARE_R2_ENDPOINT', 'S3_ENDPOINT'),
+    accountId: firstEnv('R2_ACCOUNT_ID', 'CLOUDFLARE_R2_ACCOUNT_ID', 'S3_ACCOUNT_ID'),
+    bucket: firstEnv('R2_BUCKET', 'CLOUDFLARE_R2_BUCKET', 'S3_BUCKET'),
+    accessKeyId: firstEnv('R2_ACCESS_KEY_ID', 'CLOUDFLARE_R2_ACCESS_KEY_ID', 'S3_ACCESS_KEY_ID', 'AWS_ACCESS_KEY_ID'),
+    secretAccessKey: firstEnv('R2_SECRET_ACCESS_KEY', 'CLOUDFLARE_R2_SECRET_ACCESS_KEY', 'S3_SECRET_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY'),
+    region: firstEnv('R2_REGION', 'CLOUDFLARE_R2_REGION', 'S3_REGION', 'AWS_REGION') || 'auto'
+  }
+}
+
+function sha256Buffer(buffer) {
+  return createHash('sha256').update(buffer).digest('hex')
+}
+
+function firstEnv(...names) {
+  for (const name of names) {
+    const value = process.env[name]?.trim()
+    if (value) return value
+  }
+  return ''
+}
+
+function loadDotEnv(file) {
+  if (!existsSync(file)) return
+
+  const content = readFileSync(file, 'utf8')
+  for (const line of content.split(/\r?\n/)) {
+    const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/)
+    if (!match || match[1].startsWith('#')) continue
+    if (process.env[match[1]] !== undefined) continue
+
+    const raw = String(match[2] || '').trim()
+    process.env[match[1]] = raw.replace(/^['"]|['"]$/g, '')
+  }
 }
 
 main()

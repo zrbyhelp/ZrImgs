@@ -1,28 +1,26 @@
-import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { extname } from 'node:path'
-import { resolveStoragePath } from '../../utils/storage'
-
-const MIME_BY_EXT: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp'
-}
+import { isR2StorageEnabled, readStoredImageStream, signedStorageUrl } from '../../utils/storage'
 
 export default defineEventHandler(async (event) => {
   requireUser(event)
 
   const raw = getRouterParam(event, 'path') || ''
-  const storagePath = decodeURIComponent(raw)
-  const file = resolveStoragePath(storagePath)
-  const fileStat = await stat(file).catch(() => null)
+  const storagePath = decodeMediaPath(raw)
 
-  if (!fileStat?.isFile()) {
-    throw createError({ statusCode: 404, statusMessage: 'Media not found' })
+  if (isR2StorageEnabled()) {
+    return sendRedirect(event, signedStorageUrl(storagePath), 302)
   }
 
-  setHeader(event, 'content-type', MIME_BY_EXT[extname(file).toLowerCase()] || 'application/octet-stream')
-  setHeader(event, 'content-length', fileStat.size)
-  return sendStream(event, createReadStream(file))
+  const image = await readStoredImageStream(storagePath)
+
+  setHeader(event, 'content-type', image.mime)
+  if (image.size) setHeader(event, 'content-length', image.size)
+  return sendStream(event, image.stream)
 })
+
+function decodeMediaPath(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    throw createError({ statusCode: 400, statusMessage: 'Invalid media path' })
+  }
+}
