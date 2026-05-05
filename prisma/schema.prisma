@@ -33,6 +33,7 @@ model ImageSet {
   requestedImageCount Int             @default(0)
   inputImageCount     Int             @default(0)
   referenceImages     Json?
+  privacyBlurred      Boolean         @default(false)
   maskUsed            Boolean         @default(false)
   apiProvider         String?
   apiModel            String?

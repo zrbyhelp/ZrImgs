@@ -17,7 +17,7 @@
         v-for="item in column"
         :key="item.id"
         class="image-card"
-        :class="{ 'is-favorited': item.isFavorited }"
+        :class="{ 'is-favorited': item.isFavorited, 'is-privacy-blurred': item.privacyBlurred }"
       >
         <button
           class="image-card__media"
@@ -59,6 +59,17 @@
           </button>
           <button
             v-if="isAdmin"
+            class="card-action card-privacy"
+            :class="{ 'is-active': item.privacyBlurred }"
+            type="button"
+            :title="item.privacyBlurred ? '取消隐私模糊' : '设置隐私模糊'"
+            @click.stop="$emit('privacy', item, !item.privacyBlurred)"
+          >
+            <EyeOff v-if="item.privacyBlurred" :size="16" />
+            <Eye v-else :size="16" />
+          </button>
+          <button
+            v-if="isAdmin"
             class="card-action card-delete"
             type="button"
             title="删除图集"
@@ -73,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { Heart, Trash2 } from 'lucide-vue-next'
+import { Eye, EyeOff, Heart, Trash2 } from 'lucide-vue-next'
 
 type GalleryDensity = 'regular' | 'compact' | 'dense'
 
@@ -81,6 +92,7 @@ const props = defineProps<{ items: any[] }>()
 defineEmits<{
   open: [item: any]
   favorite: [item: any, next: boolean]
+  privacy: [item: any, next: boolean]
   delete: [item: any]
 }>()
 

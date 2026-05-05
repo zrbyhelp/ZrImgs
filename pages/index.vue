@@ -2,7 +2,13 @@
   <main class="app-page">
     <div v-if="redirecting" class="empty-state">正在进入登录</div>
     <template v-else>
-      <ImageMasonry :items="items" @open="openItem" @favorite="setFavorite" @delete="deleteItem" />
+      <ImageMasonry
+        :items="items"
+        @open="openItem"
+        @favorite="setFavorite"
+        @privacy="setPrivacyBlur"
+        @delete="deleteItem"
+      />
       <div v-if="error" class="empty-state">{{ error }}</div>
       <div v-else-if="!loading && items.length === 0" class="empty-state">{{ emptyText }}</div>
       <div ref="sentinel" class="load-state">
@@ -167,6 +173,20 @@ async function setFavorite(item: any, next: boolean) {
   }
 }
 
+async function setPrivacyBlur(item: any, next: boolean) {
+  if (!session.value.admin) return
+
+  try {
+    const data = await $fetch<any>(`/api/admin/images/${item.id}/privacy`, {
+      method: 'PATCH',
+      body: { privacyBlurred: next }
+    })
+    applyItemUpdate(item.id, { privacyBlurred: Boolean(data.privacyBlurred) })
+  } catch (err: any) {
+    error.value = err?.data?.message || err?.statusMessage || '隐私模糊设置失败'
+  }
+}
+
 async function deleteItem(item: any) {
   if (!session.value.admin) return
 
@@ -192,29 +212,10 @@ async function deleteItem(item: any) {
 
 function applyFavoriteUpdate(id: string, data: any) {
   userFavoriteCount.value = Number(data.userFavoriteCount || userFavoriteCount.value)
-  let changed = false
-
-  items.value = items.value
-    .map((entry) => {
-      const groupItems = groupItemsFor(entry)
-      if (!groupItems.some((item: any) => item.id === id)) return entry
-
-      changed = true
-      const nextGroupItems = groupItems
-        .map((item: any) => {
-          if (item.id !== id) return item
-          return {
-            ...item,
-            isFavorited: Boolean(data.isFavorited),
-            favoriteCount: Number(data.favoriteCount || 0)
-          }
-        })
-        .filter((item: any) => !favoritesOnly.value || item.isFavorited)
-
-      return promptGroupRootFromItems(nextGroupItems)
-    })
-    .filter(Boolean)
-    .sort(compareFeedItems)
+  const changed = applyItemUpdate(id, {
+    isFavorited: Boolean(data.isFavorited),
+    favoriteCount: Number(data.favoriteCount || 0)
+  })
 
   if (!changed) return
 
@@ -225,6 +226,27 @@ function applyFavoriteUpdate(id: string, data: any) {
     activeGroupItemId.value = groupItems[0]?.id || null
     activeImageIndex.value = 0
   }
+}
+
+function applyItemUpdate(id: string, patch: Record<string, any>) {
+  let changed = false
+
+  items.value = items.value
+    .map((entry) => {
+      const groupItems = groupItemsFor(entry)
+      if (!groupItems.some((item: any) => item.id === id)) return entry
+
+      changed = true
+      const nextGroupItems = groupItems
+        .map((item: any) => item.id === id ? { ...item, ...patch } : item)
+        .filter((item: any) => !favoritesOnly.value || item.isFavorited)
+
+      return promptGroupRootFromItems(nextGroupItems)
+    })
+    .filter(Boolean)
+    .sort(compareFeedItems)
+
+  return changed
 }
 
 function compareFeedItems(a: any, b: any) {

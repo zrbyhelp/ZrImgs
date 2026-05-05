@@ -20,6 +20,7 @@ export function serializeImageSet(row: any) {
     requestedImageCount: row.requestedImageCount,
     inputImageCount: row.inputImageCount,
     referenceImages: normalizeReferenceImages(row.referenceImages),
+    privacyBlurred: Boolean(row.privacyBlurred),
     maskUsed: row.maskUsed,
     apiProvider: row.apiProvider,
     apiModel: row.apiModel,
