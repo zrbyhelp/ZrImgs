@@ -910,18 +910,18 @@ html[data-theme='dark'] .portal-background__veil {
   inset: 0;
   z-index: 2;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)),
-    rgba(10, 12, 16, 0.08);
-  backdrop-filter: blur(1.5px) saturate(1.08);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
+    rgba(10, 12, 16, 0.14);
+  backdrop-filter: blur(2.5px) saturate(1.08);
   pointer-events: none;
 }
 
 .image-card.is-privacy-blurred .image-card__frame img {
-  filter: blur(4px) saturate(0.92) contrast(0.96);
+  filter: blur(8px) saturate(0.88) contrast(0.92);
 }
 
 .image-card.is-privacy-blurred .image-card__frame.is-loaded img {
-  transform: translateY(0) scale(1.025);
+  transform: translateY(0) scale(1.055);
 }
 
 .image-card__skeleton {
