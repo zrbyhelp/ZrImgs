@@ -149,12 +149,7 @@ async function signedS3Fetch(config, method, key, options = {}) {
 
   requestHeaders.set(
     'authorization',
-    [
-      'AWS4-HMAC-SHA256',
-      `Credential=${config.accessKeyId}/${credentialScope}`,
-      `SignedHeaders=${signedHeaders}`,
-      `Signature=${signature}`
-    ].join(', ')
+    `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
   )
 
   return fetch(url, {
