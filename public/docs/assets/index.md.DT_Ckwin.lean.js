@@ -1,0 +1,1 @@
+import{_ as t,o as i,c as a,ae as e}from"./chunks/framework.BZib5Ft4.js";const c=JSON.parse('{"title":"第三方内容上传接口","description":"","frontmatter":{},"headers":[],"relativePath":"index.md","filePath":"index.md"}'),d={name:"index.md"};function n(h,s,l,p,r,o){return i(),a("div",null,[...s[0]||(s[0]=[e("",16)])])}const F=t(d,[["render",n]]);export{c as __pageData,F as default};

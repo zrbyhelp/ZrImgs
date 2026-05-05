@@ -6,6 +6,19 @@
         <span>{{ config.public.appName }}</span>
       </div>
 
+      <form class="header-search" role="search" @submit.prevent="submitSearch">
+        <input
+          v-model="searchDraft"
+          class="header-search__input"
+          type="search"
+          placeholder="搜索提示词或 ID"
+          aria-label="搜索提示词或 ID"
+        >
+        <button class="icon-button header-search__button" type="submit" title="搜索">
+          <Search :size="17" />
+        </button>
+      </form>
+
       <div class="header-actions">
         <button
           class="icon-button favorite-filter-button"
@@ -61,6 +74,7 @@ import {
   LogOut,
   MessageSquareWarning,
   Moon,
+  Search,
   Sun,
   UserRound
 } from 'lucide-vue-next'
@@ -75,6 +89,8 @@ const theme = ref<'light' | 'dark'>('light')
 const session = useState<any>('session', () => ({ user: null, admin: null }))
 const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
 const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
+const searchDraft = useState<string>('gallerySearchDraft', () => '')
+const searchQuery = useState<string>('gallerySearchQuery', () => '')
 
 const feedbackUrl = computed(() => {
   const url = new URL('/feedback', config.public.zrPortalUrl)
@@ -120,6 +136,10 @@ function toggleTheme() {
 
 function applyTheme() {
   document.documentElement.dataset.theme = theme.value
+}
+
+function submitSearch() {
+  searchQuery.value = searchDraft.value.trim()
 }
 
 function redirectToLogin() {

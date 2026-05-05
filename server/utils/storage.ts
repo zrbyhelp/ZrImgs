@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { createError } from 'h3'
 import { inferImageMetadata } from '~~/shared/image-metadata.mjs'
-import { createPresignedS3GetUrl, getS3Object, putS3Object } from '~~/shared/s3-client.mjs'
+import { createPresignedS3GetUrl, deleteS3Object, getS3Object, putS3Object } from '~~/shared/s3-client.mjs'
 
 export interface StoredImage {
   fileName: string
@@ -122,6 +122,26 @@ export async function readStoredImageStream(storagePath: string): Promise<Stored
     mime: response.headers.get('content-type') || mimeFromStoragePath(key),
     size: Number.isFinite(contentLength) && contentLength > 0 ? contentLength : null
   }
+}
+
+export async function deleteStoredImage(storagePath: string) {
+  const key = normalizeStoragePath(storagePath)
+
+  if (getStorageDriver() === 'local') {
+    const file = resolveStoragePath(key)
+    await unlink(file).catch((error: any) => {
+      if (error?.code === 'ENOENT') return
+      throw error
+    })
+    return
+  }
+
+  await deleteS3Object(getR2StorageConfig(), key).catch((error) => {
+    throw createError({
+      statusCode: error?.statusCode === 400 ? 400 : 502,
+      statusMessage: error?.message || 'Cloudflare R2 delete failed'
+    })
+  })
 }
 
 export function getStorageDriver() {

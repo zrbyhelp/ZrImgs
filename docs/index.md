@@ -21,9 +21,15 @@ Content-Type: multipart/form-data
 | `referenceImages[]` | file[] | 否 | 参照图，可传多张。会在图片详情右侧展示。 |
 | `model` | string | 否 | 生成模型名称。 |
 | `provider` | string | 否 | 生成服务商名称。 |
+| `userId` | string | 否 | 第三方系统里的用户 ID。只传该字段时，图片详情会用它作为用户展示值。 |
+| `userAccount` | string | 否 | 用户账号。 |
+| `userEmail` | string | 否 | 用户邮箱。 |
+| `userUsername` | string | 否 | 用户用户名。 |
+| `userName` | string | 否 | 用户显示名，图片详情优先展示该字段。 |
 | `params` | JSON string | 否 | 生成参数，必须是可解析 JSON 字符串。 |
 
 所有 `images[]` 的总大小不能超过服务端 `UPLOAD_MAX_BYTES` 配置，默认 30MB。
+用户展示优先级为 `userName`、`userUsername`、`userAccount`、`userEmail`、`userId`；所有用户字段都不传时，页面显示 `-`。
 
 ## 示例
 
@@ -33,6 +39,8 @@ curl -X POST "http://localhost:3001/api/uploads/third-party" \
   -F "prompt=一张高质量商业海报，主体清晰，光影自然，背景干净，适合产品展示" \
   -F "provider=openai" \
   -F "model=gpt-image-2" \
+  -F "userId=portal-user-123" \
+  -F "userName=张三" \
   -F 'params={"size":"auto","quality":"high"}' \
   -F "images[]=@./result.png" \
   -F "referenceImages[]=@./reference.png"
@@ -49,6 +57,7 @@ curl -X POST "http://localhost:3001/api/uploads/third-party" \
 ```
 
 `reviewStatus` 由上传 Token 的审核策略决定。默认 Token 上传后进入 `PENDING`，管理员审核通过后才会展示在公开图库；免审 Token 上传后会直接返回 `PUBLISHED` 并展示在公开图库。
+上传时传入的用户信息会保存到图集记录，并在图片详情的“用户”字段展示。
 
 ## 常见失败
 

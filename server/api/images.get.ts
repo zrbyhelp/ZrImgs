@@ -16,9 +16,21 @@ export default defineEventHandler(async (event) => {
   const skip = (page - 1) * limit
   const userId = user.id
   const favoritesOnly = query.favorites === '1' || query.favorites === 'true'
+  const search = readSearchQuery(query.q)
 
   const include = imageInclude(userId)
-  const baseWhere = { reviewStatus: 'PUBLISHED' as const }
+  const baseWhere: Prisma.ImageSetWhereInput = {
+    reviewStatus: 'PUBLISHED',
+    ...(search
+      ? {
+          OR: [
+            { prompt: { contains: search } },
+            { id: { contains: search } },
+            { externalId: { contains: search } }
+          ]
+        }
+      : {})
+  }
 
   if (favoritesOnly) {
     const where = { ...baseWhere, favorites: { some: { userId } } }
@@ -79,4 +91,9 @@ function imageInclude(userId: string) {
         }
       : {})
   }
+}
+
+function readSearchQuery(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value
+  return typeof raw === 'string' ? raw.trim() : ''
 }

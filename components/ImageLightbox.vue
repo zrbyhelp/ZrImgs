@@ -45,6 +45,17 @@
       <dl class="info-block">
         <div class="info-row">
           <dt class="info-heading">
+            <span>ID</span>
+            <button class="mini-icon-button" type="button" :title="copyIdDone ? '已复制' : '复制 ID'" @click="copyImageSetId">
+              <Check v-if="copyIdDone" :size="14" />
+              <Copy v-else :size="14" />
+            </button>
+          </dt>
+          <dd class="id-value">{{ displayId }}</dd>
+        </div>
+
+        <div class="info-row">
+          <dt class="info-heading">
             <span>提示词</span>
             <button class="mini-icon-button" type="button" :title="copyDone ? '已复制' : '复制提示词'" @click="copyPrompt">
               <Check v-if="copyDone" :size="14" />
@@ -88,7 +99,7 @@
         </div>
         <div class="info-row">
           <dt>用户</dt>
-          <dd>{{ item.user?.name || item.user?.account || '-' }}</dd>
+          <dd>{{ userDisplay }}</dd>
         </div>
         <div class="info-row">
           <dt>生成时间</dt>
@@ -121,9 +132,11 @@ const emit = defineEmits<{
 
 const promptExpanded = ref(false)
 const copyDone = ref(false)
+const copyIdDone = ref(false)
 const selectedReference = ref<any | null>(null)
 const { downloadImage } = useImageDownload()
 
+const displayId = computed(() => String(props.item?.externalId || props.item?.id || ''))
 const generatedImage = computed(() => props.item?.images?.[props.imageIndex])
 const referenceImages = computed(() => {
   const images = Array.isArray(props.item?.referenceImages) ? props.item.referenceImages : []
@@ -134,10 +147,15 @@ const showingReference = computed(() => Boolean(selectedReference.value))
 const promptLong = computed(() => String(props.item?.prompt || '').length > 220)
 const promptCollapsed = computed(() => promptLong.value && !promptExpanded.value)
 const slideName = computed(() => props.direction < 0 ? 'slide-right' : 'slide-left')
+const userDisplay = computed(() => {
+  const user = props.item?.user || {}
+  return user.name || user.username || user.account || user.email || user.id || '-'
+})
 
 watch(() => [props.item?.id, props.imageIndex], () => {
   promptExpanded.value = false
   copyDone.value = false
+  copyIdDone.value = false
   selectedReference.value = null
 })
 
@@ -155,6 +173,24 @@ onMounted(() => {
 async function copyPrompt() {
   const text = String(props.item?.prompt || '')
   if (!text) return
+  await copyText(text)
+  copyDone.value = true
+  window.setTimeout(() => {
+    copyDone.value = false
+  }, 1200)
+}
+
+async function copyImageSetId() {
+  const text = displayId.value
+  if (!text) return
+  await copyText(text)
+  copyIdDone.value = true
+  window.setTimeout(() => {
+    copyIdDone.value = false
+  }, 1200)
+}
+
+async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text)
   } catch {
@@ -167,10 +203,6 @@ async function copyPrompt() {
     document.execCommand('copy')
     textarea.remove()
   }
-  copyDone.value = true
-  window.setTimeout(() => {
-    copyDone.value = false
-  }, 1200)
 }
 
 function downloadCurrent() {

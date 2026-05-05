@@ -41,33 +41,47 @@
           </span>
         </button>
 
-        <button
-          class="card-favorite"
-          :class="{ 'is-active': item.isFavorited }"
-          type="button"
-          :title="item.isFavorited ? '取消收藏' : '收藏'"
-          @click.stop="$emit('favorite', item, !item.isFavorited)"
-        >
-          <Heart :size="16" :fill="item.isFavorited ? 'currentColor' : 'none'" />
-        </button>
+        <span class="card-actions">
+          <button
+            class="card-action card-favorite"
+            :class="{ 'is-active': item.isFavorited }"
+            type="button"
+            :title="item.isFavorited ? '取消收藏' : '收藏'"
+            @click.stop="$emit('favorite', item, !item.isFavorited)"
+          >
+            <Heart :size="16" :fill="item.isFavorited ? 'currentColor' : 'none'" />
+          </button>
+          <button
+            v-if="isAdmin"
+            class="card-action card-delete"
+            type="button"
+            title="删除图集"
+            @click.stop="$emit('delete', item)"
+          >
+            <Trash2 :size="16" />
+          </button>
+        </span>
       </article>
     </TransitionGroup>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Heart } from 'lucide-vue-next'
+import { Heart, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps<{ items: any[] }>()
 defineEmits<{
   open: [item: any]
   favorite: [item: any, next: boolean]
+  delete: [item: any]
 }>()
 
 const loaded = reactive<Record<string, boolean>>({})
 const columnCount = ref(5)
+const session = useState<any>('session', () => ({ user: null, admin: null }))
 const { downloadImage } = useImageDownload()
 const columns = computed(() => buildColumns(props.items, columnCount.value))
+const isAdmin = computed(() => Boolean(session.value.admin))
 
 onMounted(() => {
   updateColumnCount()

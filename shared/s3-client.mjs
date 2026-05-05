@@ -63,6 +63,34 @@ export async function getS3Object(input, key) {
   return response
 }
 
+export async function headS3Object(input, key) {
+  const config = requireS3Config(input)
+  const response = await signedS3Fetch(config, 'HEAD', key, {
+    headers: { 'x-amz-content-sha256': EMPTY_HASH },
+    payloadHash: EMPTY_HASH
+  })
+
+  if (!response.ok) {
+    throw await buildS3Error(response, 'stat', key)
+  }
+
+  return response
+}
+
+export async function deleteS3Object(input, key) {
+  const config = requireS3Config(input)
+  const response = await signedS3Fetch(config, 'DELETE', key, {
+    headers: { 'x-amz-content-sha256': EMPTY_HASH },
+    payloadHash: EMPTY_HASH
+  })
+
+  if (!response.ok) {
+    throw await buildS3Error(response, 'delete', key)
+  }
+
+  return response
+}
+
 export function createPresignedS3GetUrl(input, key, options = {}) {
   const config = requireS3Config(input)
   const normalizedKey = normalizeObjectKey(key)

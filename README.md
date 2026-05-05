@@ -33,7 +33,7 @@ pnpm dev
 
 ## 文档
 
-第三方上传接口文档放在 `docs/`，构建后访问 `/docs/`。
+第三方上传接口文档放在 `docs/`，构建后访问 `/docs/`。文档包含上传 Token、审核状态、用户字段、参照图和展示规则。
 
 ```bash
 pnpm docs:build

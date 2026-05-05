@@ -2,7 +2,7 @@
   <main class="app-page">
     <div v-if="redirecting" class="empty-state">正在进入登录</div>
     <template v-else>
-      <ImageMasonry :items="items" @open="openItem" @favorite="setFavorite" />
+      <ImageMasonry :items="items" @open="openItem" @favorite="setFavorite" @delete="deleteItem" />
       <div v-if="error" class="empty-state">{{ error }}</div>
       <div v-else-if="!loading && items.length === 0" class="empty-state">{{ emptyText }}</div>
       <div ref="sentinel" class="load-state">
@@ -29,6 +29,7 @@ const route = useRoute()
 const session = useState<any>('session', () => ({ user: null, admin: null }))
 const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
 const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
+const searchQuery = useState<string>('gallerySearchQuery', () => '')
 
 const items = ref<any[]>([])
 const page = ref(1)
@@ -42,11 +43,16 @@ const navDirection = ref(1)
 const sentinel = ref<HTMLElement | null>(null)
 
 const activeItem = computed(() => items.value.find((item) => item.id === activeItemId.value) || null)
-const emptyText = computed(() => favoritesOnly.value ? '暂无收藏内容' : '暂无图片')
+const emptyText = computed(() => searchQuery.value ? '暂无匹配图片' : favoritesOnly.value ? '暂无收藏内容' : '暂无图片')
 const canPrev = computed(() => canNavigate(-1))
 const canNext = computed(() => canNavigate(1))
 
 watch(favoritesOnly, async () => {
+  closeLightbox()
+  await refreshFeed()
+})
+
+watch(searchQuery, async () => {
   closeLightbox()
   await refreshFeed()
 })
@@ -98,7 +104,8 @@ async function loadMore() {
       query: {
         page: page.value,
         limit: 28,
-        favorites: favoritesOnly.value ? 1 : undefined
+        favorites: favoritesOnly.value ? 1 : undefined,
+        q: searchQuery.value || undefined
       }
     })
     userFavoriteCount.value = Number(data.favoriteCount || 0)
@@ -126,6 +133,32 @@ async function setFavorite(item: any, next: boolean) {
     applyFavoriteUpdate(item.id, data)
   } catch (err: any) {
     error.value = err?.data?.message || err?.statusMessage || '收藏操作失败'
+  }
+}
+
+async function deleteItem(item: any) {
+  if (!session.value.admin) return
+
+  const prompt = String(item?.prompt || '').trim()
+  const confirmed = window.confirm(`确定删除这个图集吗？${prompt ? `\n\n${prompt.slice(0, 120)}` : ''}`)
+  if (!confirmed) return
+
+  try {
+    const data = await $fetch<any>(`/api/admin/images/${item.id}`, {
+      method: 'DELETE'
+    })
+
+    items.value = items.value.filter((entry) => entry.id !== item.id)
+    if (item.isFavorited) {
+      userFavoriteCount.value = Math.max(userFavoriteCount.value - 1, 0)
+    }
+    if (activeItemId.value === item.id) closeLightbox()
+
+    if (Number(data.storageDeleteFailed || 0) > 0) {
+      error.value = `图集已删除，但有 ${data.storageDeleteFailed} 个存储文件删除失败，请查看审计日志`
+    }
+  } catch (err: any) {
+    error.value = err?.data?.message || err?.statusMessage || '删除图集失败'
   }
 }
 
