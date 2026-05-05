@@ -43,7 +43,7 @@
           </span>
           <span class="image-card__meta">
             <span class="image-card__prompt">{{ item.prompt }}</span>
-            <span v-if="item.images?.length > 1" class="image-count">{{ item.images.length }}</span>
+            <span v-if="badgeCount(item) > 1" class="image-count">{{ badgeCount(item) }}</span>
           </span>
         </button>
 
@@ -110,6 +110,10 @@ function imageRatio(image: any) {
   const height = Number(image?.height || 0)
   if (width > 0 && height > 0) return `${width} / ${height}`
   return '4 / 5'
+}
+
+function badgeCount(item: any) {
+  return Number(item?.promptGroupCount || item?.images?.length || 0)
 }
 
 function buildColumns(items: any[], count: number) {

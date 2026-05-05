@@ -42,6 +42,29 @@
     </section>
 
     <aside class="preview-info">
+      <div v-if="groupThumbs.length > 1" class="prompt-group-panel">
+        <div class="prompt-group-heading">
+          <span>同提示词图片</span>
+          <span>{{ selectedThumbNumber }} / {{ groupThumbs.length }}</span>
+        </div>
+        <div class="prompt-group-list">
+          <button
+            v-for="thumb in groupThumbs"
+            :key="thumb.key"
+            class="prompt-group-thumb"
+            :class="{ 'is-active': thumb.isActive }"
+            type="button"
+            :title="thumb.title"
+            :aria-pressed="thumb.isActive"
+            @click="selectGeneratedImage(thumb)"
+            @contextmenu.prevent="downloadImage(thumb.image, thumb.item.id || 'image')"
+          >
+            <img :src="thumb.image.url" :alt="thumb.item.prompt" draggable="false">
+            <span v-if="thumb.item.images?.length > 1" class="prompt-group-thumb__index">{{ thumb.imageIndex + 1 }}</span>
+          </button>
+        </div>
+      </div>
+
       <dl class="info-block">
         <div class="info-row">
           <dt class="info-heading">
@@ -119,6 +142,7 @@ import { Check, ChevronLeft, ChevronRight, Copy, Download, Heart, X } from 'luci
 
 const props = defineProps<{
   item: any | null
+  groupItems?: any[]
   imageIndex: number
   canPrev: boolean
   canNext: boolean
@@ -128,6 +152,7 @@ const emit = defineEmits<{
   close: []
   favorite: [item: any, next: boolean]
   navigate: [direction: number]
+  'select-image': [item: any, imageIndex: number]
 }>()
 
 const promptExpanded = ref(false)
@@ -138,6 +163,32 @@ const { downloadImage } = useImageDownload()
 
 const displayId = computed(() => String(props.item?.externalId || props.item?.id || ''))
 const generatedImage = computed(() => props.item?.images?.[props.imageIndex])
+const activeGroupItems = computed(() => {
+  const items = Array.isArray(props.groupItems) && props.groupItems.length ? props.groupItems : []
+  if (items.length) return items
+  return props.item ? [props.item] : []
+})
+const groupThumbs = computed<any[]>(() => {
+  return activeGroupItems.value.flatMap((item: any) => {
+    const images = Array.isArray(item?.images) ? item.images : []
+    return images
+      .map((image: any, imageIndex: number) => {
+        if (!image?.url) return null
+        const isActive = item?.id === props.item?.id && imageIndex === props.imageIndex
+        return {
+          key: `${item.id || 'image-set'}:${image.id || image.url}:${imageIndex}`,
+          item,
+          image,
+          imageIndex,
+          isActive,
+          title: `${imageIndex + 1} / ${images.length}`
+        }
+      })
+      .filter(Boolean) as any[]
+  })
+})
+const selectedThumbIndex = computed(() => groupThumbs.value.findIndex((thumb: any) => thumb.isActive))
+const selectedThumbNumber = computed(() => selectedThumbIndex.value >= 0 ? selectedThumbIndex.value + 1 : 1)
 const referenceImages = computed(() => {
   const images = Array.isArray(props.item?.referenceImages) ? props.item.referenceImages : []
   return images.filter((image: any) => image?.url)
@@ -207,6 +258,11 @@ async function copyText(text: string) {
 
 function downloadCurrent() {
   downloadImage(currentImage.value, props.item?.id || 'image')
+}
+
+function selectGeneratedImage(thumb: any) {
+  selectedReference.value = null
+  emit('select-image', thumb.item, thumb.imageIndex)
 }
 
 function formatDate(value?: string) {

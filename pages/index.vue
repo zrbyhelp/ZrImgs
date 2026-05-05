@@ -12,6 +12,7 @@
       </div>
       <ImageLightbox
         :item="activeItem"
+        :group-items="activeGroupItems"
         :image-index="activeImageIndex"
         :can-prev="canPrev"
         :can-next="canNext"
@@ -19,6 +20,7 @@
         @close="closeLightbox"
         @favorite="setFavorite"
         @navigate="navigateActive"
+        @select-image="selectActiveImage"
       />
     </template>
   </main>
@@ -37,12 +39,22 @@ const hasMore = ref(true)
 const loading = ref(false)
 const redirecting = ref(false)
 const error = ref('')
-const activeItemId = ref<string | null>(null)
+const activeGroupPrompt = ref<string | null>(null)
+const activeGroupItemId = ref<string | null>(null)
 const activeImageIndex = ref(0)
 const navDirection = ref(1)
 const sentinel = ref<HTMLElement | null>(null)
 
-const activeItem = computed(() => items.value.find((item) => item.id === activeItemId.value) || null)
+const activeGroupRoot = computed(() => {
+  if (!activeGroupPrompt.value) return null
+  return items.value.find((item) => promptGroupKey(item) === activeGroupPrompt.value) || null
+})
+const activeGroupItems = computed(() => groupItemsFor(activeGroupRoot.value))
+const activeItem = computed(() => {
+  const groupItems = activeGroupItems.value
+  if (!groupItems.length) return null
+  return groupItems.find((item: any) => item.id === activeGroupItemId.value) || groupItems[0] || null
+})
 const emptyText = computed(() => searchQuery.value ? '暂无匹配图片' : favoritesOnly.value ? '暂无收藏内容' : '暂无图片')
 const canPrev = computed(() => canNavigate(-1))
 const canNext = computed(() => canNavigate(1))
@@ -57,8 +69,27 @@ watch(searchQuery, async () => {
   await refreshFeed()
 })
 
+watch(activeGroupRoot, (item) => {
+  if (!item) {
+    activeGroupPrompt.value = null
+    activeGroupItemId.value = null
+    activeImageIndex.value = 0
+    return
+  }
+
+  const groupItems = groupItemsFor(item)
+  if (!groupItems.some((entry: any) => entry.id === activeGroupItemId.value)) {
+    activeGroupItemId.value = groupItems[0]?.id || null
+    activeImageIndex.value = 0
+  }
+})
+
 watch(activeItem, (item) => {
-  if (!item) activeItemId.value = null
+  if (!item) return
+  const imageCount = item.images?.length || 0
+  if (activeImageIndex.value >= imageCount) {
+    activeImageIndex.value = Math.max(imageCount - 1, 0)
+  }
 })
 
 onMounted(async () => {
@@ -109,8 +140,8 @@ async function loadMore() {
       }
     })
     userFavoriteCount.value = Number(data.favoriteCount || 0)
-    const existing = new Set(items.value.map((item) => item.id))
-    items.value.push(...data.items.filter((item: any) => !existing.has(item.id)))
+    const existing = new Set(items.value.map(promptGroupKey))
+    items.value.push(...data.items.filter((item: any) => !existing.has(promptGroupKey(item))))
     hasMore.value = data.hasMore
     page.value += 1
   } catch (err: any) {
@@ -148,11 +179,8 @@ async function deleteItem(item: any) {
       method: 'DELETE'
     })
 
-    items.value = items.value.filter((entry) => entry.id !== item.id)
-    if (item.isFavorited) {
-      userFavoriteCount.value = Math.max(userFavoriteCount.value - 1, 0)
-    }
-    if (activeItemId.value === item.id) closeLightbox()
+    if (activeGroupPrompt.value === promptGroupKey(item)) closeLightbox()
+    await refreshFeed()
 
     if (Number(data.storageDeleteFailed || 0) > 0) {
       error.value = `图集已删除，但有 ${data.storageDeleteFailed} 个存储文件删除失败，请查看审计日志`
@@ -164,19 +192,39 @@ async function deleteItem(item: any) {
 
 function applyFavoriteUpdate(id: string, data: any) {
   userFavoriteCount.value = Number(data.userFavoriteCount || userFavoriteCount.value)
-  const item = items.value.find((entry) => entry.id === id)
-  if (!item) return
+  let changed = false
 
-  item.isFavorited = Boolean(data.isFavorited)
-  item.favoriteCount = Number(data.favoriteCount || 0)
+  items.value = items.value
+    .map((entry) => {
+      const groupItems = groupItemsFor(entry)
+      if (!groupItems.some((item: any) => item.id === id)) return entry
 
-  if (favoritesOnly.value && !item.isFavorited) {
-    items.value = items.value.filter((entry) => entry.id !== id)
-    if (activeItemId.value === id) closeLightbox()
-    return
+      changed = true
+      const nextGroupItems = groupItems
+        .map((item: any) => {
+          if (item.id !== id) return item
+          return {
+            ...item,
+            isFavorited: Boolean(data.isFavorited),
+            favoriteCount: Number(data.favoriteCount || 0)
+          }
+        })
+        .filter((item: any) => !favoritesOnly.value || item.isFavorited)
+
+      return promptGroupRootFromItems(nextGroupItems)
+    })
+    .filter(Boolean)
+    .sort(compareFeedItems)
+
+  if (!changed) return
+
+  const groupItems = activeGroupItems.value
+  if (!groupItems.length) {
+    closeLightbox()
+  } else if (!groupItems.some((item: any) => item.id === activeGroupItemId.value)) {
+    activeGroupItemId.value = groupItems[0]?.id || null
+    activeImageIndex.value = 0
   }
-
-  items.value = [...items.value].sort(compareFeedItems)
 }
 
 function compareFeedItems(a: any, b: any) {
@@ -190,13 +238,26 @@ function compareFeedItems(a: any, b: any) {
 }
 
 function openItem(item: any) {
-  activeItemId.value = item.id
+  activeGroupPrompt.value = promptGroupKey(item)
+  activeGroupItemId.value = item.id
   activeImageIndex.value = 0
 }
 
 function closeLightbox() {
-  activeItemId.value = null
+  activeGroupPrompt.value = null
+  activeGroupItemId.value = null
   activeImageIndex.value = 0
+}
+
+function selectActiveImage(item: any, imageIndex: number) {
+  const currentIndex = flatImageIndex(activeItem.value, activeImageIndex.value)
+  const nextIndex = flatImageIndex(item, imageIndex)
+  if (currentIndex >= 0 && nextIndex >= 0 && currentIndex !== nextIndex) {
+    navDirection.value = nextIndex > currentIndex ? 1 : -1
+  }
+
+  activeGroupItemId.value = item.id
+  activeImageIndex.value = clampImageIndex(item, imageIndex)
 }
 
 function navigateActive(direction: number) {
@@ -211,12 +272,25 @@ function navigateActive(direction: number) {
     return
   }
 
-  const currentIndex = items.value.findIndex((entry) => entry.id === item.id)
+  const groupItems = activeGroupItems.value.filter(hasGeneratedImages)
+  const currentGroupIndex = groupItems.findIndex((entry: any) => entry.id === item.id)
+  const nextGroupIndex = currentGroupIndex + direction
+  if (nextGroupIndex >= 0 && nextGroupIndex < groupItems.length) {
+    const nextGroupItem = groupItems[nextGroupIndex]
+    activeGroupItemId.value = nextGroupItem.id
+    activeImageIndex.value = direction > 0 ? 0 : lastImageIndex(nextGroupItem)
+    return
+  }
+
+  const currentIndex = items.value.findIndex((entry) => promptGroupKey(entry) === activeGroupPrompt.value)
   const nextItem = findNavigableItem(currentIndex, direction)
   if (!nextItem) return
 
-  activeItemId.value = nextItem.item.id
-  activeImageIndex.value = direction > 0 ? 0 : Math.max((nextItem.item.images?.length || 1) - 1, 0)
+  const nextGroupItems = groupItemsFor(nextItem.item).filter(hasGeneratedImages)
+  const nextActiveItem = direction > 0 ? nextGroupItems[0] : nextGroupItems[nextGroupItems.length - 1]
+  activeGroupPrompt.value = promptGroupKey(nextItem.item)
+  activeGroupItemId.value = nextActiveItem.id
+  activeImageIndex.value = direction > 0 ? 0 : lastImageIndex(nextActiveItem)
 }
 
 function canNavigate(direction: number) {
@@ -227,18 +301,74 @@ function canNavigate(direction: number) {
   const nextImageIndex = activeImageIndex.value + direction
   if (nextImageIndex >= 0 && nextImageIndex < imageCount) return true
 
-  const currentIndex = items.value.findIndex((entry) => entry.id === item.id)
+  const groupItems = activeGroupItems.value.filter(hasGeneratedImages)
+  const currentGroupIndex = groupItems.findIndex((entry: any) => entry.id === item.id)
+  const nextGroupIndex = currentGroupIndex + direction
+  if (nextGroupIndex >= 0 && nextGroupIndex < groupItems.length) return true
+
+  const currentIndex = items.value.findIndex((entry) => promptGroupKey(entry) === activeGroupPrompt.value)
   return Boolean(findNavigableItem(currentIndex, direction))
 }
 
 function findNavigableItem(currentIndex: number, direction: number) {
   if (currentIndex < 0) return null
   for (let index = currentIndex + direction; index >= 0 && index < items.value.length; index += direction) {
-    if (items.value[index]?.images?.length) {
+    if (groupItemsFor(items.value[index]).some(hasGeneratedImages)) {
       return { item: items.value[index], index }
     }
   }
   return null
+}
+
+function groupItemsFor(item: any | null) {
+  if (!item) return []
+
+  const groupItems = Array.isArray(item.promptGroupItems) && item.promptGroupItems.length
+    ? item.promptGroupItems
+    : [item]
+
+  if (groupItems.some((entry: any) => entry?.id === item.id)) return groupItems
+  return [item, ...groupItems]
+}
+
+function promptGroupRootFromItems(groupItems: any[]) {
+  const sorted = [...groupItems].filter(Boolean).sort(compareFeedItems)
+  const representative = sorted[0]
+  if (!representative) return null
+
+  return {
+    ...representative,
+    promptGroupCount: sorted.length,
+    promptGroupItems: sorted
+  }
+}
+
+function promptGroupKey(item: any) {
+  return String(item?.prompt || item?.id || '')
+}
+
+function hasGeneratedImages(item: any) {
+  return Boolean(item?.images?.length)
+}
+
+function lastImageIndex(item: any) {
+  return Math.max((item?.images?.length || 1) - 1, 0)
+}
+
+function clampImageIndex(item: any, imageIndex: number) {
+  const maxIndex = lastImageIndex(item)
+  return Math.min(Math.max(Number(imageIndex || 0), 0), maxIndex)
+}
+
+function flatImageIndex(item: any | null, imageIndex: number) {
+  if (!item) return -1
+
+  let offset = 0
+  for (const entry of activeGroupItems.value) {
+    if (entry.id === item.id) return offset + clampImageIndex(entry, imageIndex)
+    offset += entry.images?.length || 0
+  }
+  return -1
 }
 
 function redirectToLogin() {
