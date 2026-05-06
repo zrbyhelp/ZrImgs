@@ -39,6 +39,8 @@ const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
 const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
 const searchQuery = useState<string>('gallerySearchQuery', () => '')
 
+const FEED_PAGE_LIMIT = 28
+
 const items = ref<any[]>([])
 const page = ref(1)
 const hasMore = ref(true)
@@ -140,7 +142,7 @@ async function loadMore() {
     const data = await $fetch<any>('/api/images', {
       query: {
         page: page.value,
-        limit: 28,
+        limit: FEED_PAGE_LIMIT,
         favorites: favoritesOnly.value ? 1 : undefined,
         q: searchQuery.value || undefined
       }
@@ -200,7 +202,10 @@ async function deleteItem(item: any) {
     })
 
     if (activeGroupPrompt.value === promptGroupKey(item)) closeLightbox()
-    await refreshFeed()
+    removeDeletedItem(item.id)
+    if (item.isFavorited) {
+      userFavoriteCount.value = Math.max(userFavoriteCount.value - 1, 0)
+    }
 
     if (Number(data.storageDeleteFailed || 0) > 0) {
       error.value = `图集已删除，但有 ${data.storageDeleteFailed} 个存储文件删除失败，请查看审计日志`
@@ -247,6 +252,34 @@ function applyItemUpdate(id: string, patch: Record<string, any>) {
     .sort(compareFeedItems)
 
   return changed
+}
+
+function removeDeletedItem(id: string) {
+  let changed = false
+  let removedPromptGroup = false
+
+  items.value = items.value
+    .map((entry) => {
+      const groupItems = groupItemsFor(entry)
+      if (!groupItems.some((item: any) => item.id === id)) return entry
+
+      changed = true
+      const nextGroupItems = groupItems.filter((item: any) => item.id !== id)
+      if (!nextGroupItems.length) {
+        removedPromptGroup = true
+        return null
+      }
+
+      return promptGroupRootFromItems(nextGroupItems)
+    })
+    .filter(Boolean)
+    .sort(compareFeedItems)
+
+  if (!changed) return
+
+  if (removedPromptGroup && hasMore.value) {
+    page.value = Math.min(page.value, Math.floor(items.value.length / FEED_PAGE_LIMIT) + 1)
+  }
 }
 
 function compareFeedItems(a: any, b: any) {
