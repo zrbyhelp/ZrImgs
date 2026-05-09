@@ -10,6 +10,9 @@ const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DEFAULT_GROUP_BATCH_SIZE = 20
 const DEFAULT_DELETE_CONCURRENCY = 1
 const DEFAULT_SIMILARITY_THRESHOLD = 92
+const DEFAULT_DB_RECONNECT_ATTEMPTS = 5
+const DEFAULT_DB_RECONNECT_DELAY_MS = 1000
+const DEFAULT_DB_RECONNECT_MAX_DELAY_MS = 10000
 const SIMILARITY_NGRAM_SIZE = 2
 export const JSON_SEARCH_ESCAPE_CHAR = '#'
 const SIMILARITY_IGNORED_CHARS = /[\s.,，。;；:：!?！？'"“”‘’`´_\-—–~·、/\\|()[\]{}<>《》【】「」『』…]+/gu
@@ -173,10 +176,20 @@ async function main() {
   loadDotEnv(path.resolve(cwd, options.envFile))
 
   const PrismaClient = await loadPrismaClient()
-  const prisma = new PrismaClient()
   const storage = getStorageConfig()
   const reporter = await createReporter(options)
   const summary = createSummary(options, storage, reporter)
+  const prisma = createReconnectablePrisma(PrismaClient, {
+    onReconnect(event) {
+      summary.databaseReconnects += 1
+      reporter.write('database_reconnect', event)
+      console.warn(`Database connection failed during ${event.operation}; reconnecting (${event.attempt}/${event.maxAttempts})...`)
+    },
+    onReconnectFailed(event) {
+      summary.databaseReconnectFailures += 1
+      reporter.write('database_reconnect_failed', event)
+    }
+  })
 
   try {
     if (options.execute && storage.driver === 'r2') {
@@ -233,7 +246,7 @@ async function cleanupExactPromptDuplicates(prisma, storage, reporter, summary, 
 }
 
 async function cleanupSimilarPromptDuplicates(prisma, storage, reporter, summary, options) {
-  const rows = await findImageSetsForSimilarPrompts(prisma)
+  const rows = await findImageSetsForSimilarPrompts(prisma, options.groupBatchSize)
   const groups = findSimilarPromptGroups(rows, options.similarityThreshold)
 
   for (const group of groups) {
@@ -340,11 +353,18 @@ async function processPromptKey(prisma, storage, reporter, summary, options, pro
 }
 
 async function processDuplicateImageSet(prisma, storage, reporter, summary, options, keeper, duplicate, match = null) {
+  const referenceImages = duplicate.referenceImages === undefined
+    ? (await prisma.imageSet.findUnique({
+        where: { id: duplicate.id },
+        select: { referenceImages: true }
+      }))?.referenceImages
+    : duplicate.referenceImages
+
   const images = await prisma.imageFile.findMany({
     where: { imageSetId: duplicate.id },
     select: { storagePath: true, size: true }
   })
-  const storagePaths = uniqueStoragePaths(images, referenceStoragePaths(duplicate.referenceImages))
+  const storagePaths = uniqueStoragePaths(images, referenceStoragePaths(referenceImages))
   const imageBytes = images.reduce((sum, image) => sum + Number(image.size || 0), 0)
 
   summary.duplicateImageSetsFound += 1
@@ -367,9 +387,9 @@ async function processDuplicateImageSet(prisma, storage, reporter, summary, opti
   }
 
   try {
-    await prisma.imageSet.delete({ where: { id: duplicate.id } })
+    const deleteResult = await deleteImageSetIfPresent(prisma, duplicate.id)
     summary.imageSetsDeleted += 1
-    reporter.write('delete_image_set', event)
+    reporter.write(deleteResult === 'missing' ? 'delete_image_set_already_missing' : 'delete_image_set', event)
   } catch (error) {
     summary.databaseDeleteFailures += 1
     reporter.write('database_delete_failed', {
@@ -381,6 +401,16 @@ async function processDuplicateImageSet(prisma, storage, reporter, summary, opti
 
   for (const storagePath of storagePaths) {
     await deleteStoragePathIfUnused(prisma, storage, reporter, summary, duplicate.id, storagePath)
+  }
+}
+
+async function deleteImageSetIfPresent(prisma, imageSetId) {
+  try {
+    await prisma.imageSet.delete({ where: { id: imageSetId } })
+    return 'deleted'
+  } catch (error) {
+    if (isRecordNotFoundError(error)) return 'missing'
+    throw error
   }
 }
 
@@ -469,23 +499,35 @@ async function findNextDuplicatesForPromptKey(prisma, promptKey, keeperId, lastD
   `
 }
 
-async function findImageSetsForSimilarPrompts(prisma) {
-  return prisma.$queryRaw`
-    SELECT
-      image_set.id,
-      image_set.prompt,
-      image_set.reviewStatus,
-      image_set.createdAt,
-      image_set.referenceImages,
-      COALESCE(favorite_counts.favoriteCount, 0) AS favoriteCount
-    FROM ImageSet image_set
-    LEFT JOIN (
-      SELECT imageSetId, COUNT(*) AS favoriteCount
-      FROM ImageFavorite
-      GROUP BY imageSetId
-    ) favorite_counts ON favorite_counts.imageSetId = image_set.id
-    ORDER BY image_set.id ASC
-  `
+async function findImageSetsForSimilarPrompts(prisma, batchSize) {
+  const rows = []
+  let lastImageSetId = ''
+
+  while (true) {
+    const batch = await prisma.$queryRaw`
+      SELECT
+        image_set.id,
+        image_set.prompt,
+        image_set.reviewStatus,
+        image_set.createdAt,
+        COALESCE(favorite_counts.favoriteCount, 0) AS favoriteCount
+      FROM ImageSet image_set
+      LEFT JOIN (
+        SELECT imageSetId, COUNT(*) AS favoriteCount
+        FROM ImageFavorite
+        GROUP BY imageSetId
+      ) favorite_counts ON favorite_counts.imageSetId = image_set.id
+      WHERE image_set.id > ${lastImageSetId}
+      ORDER BY image_set.id ASC
+      LIMIT ${batchSize}
+    `
+
+    if (batch.length === 0) break
+    rows.push(...batch)
+    lastImageSetId = batch[batch.length - 1].id
+  }
+
+  return rows
 }
 
 async function isStoragePathReferenced(prisma, storagePath) {
@@ -596,12 +638,140 @@ function createSummary(options, storage, reporter) {
     storageObjectsDeleted: 0,
     storageObjectsMissing: 0,
     storageDeleteSkippedReferenced: 0,
+    databaseReconnects: 0,
+    databaseReconnectFailures: 0,
     databaseDeleteFailures: 0,
     storageDeleteFailures: 0,
     promptHashCollisionsSkipped: 0,
     similarPromptGroupsProcessed: 0,
     similarPromptPairsMatched: 0
   }
+}
+
+function createReconnectablePrisma(PrismaClient, hooks = {}) {
+  let client = new PrismaClient()
+  let reconnectPromise = null
+  const maxAttempts = readPositiveEnvInt('CLEANUP_DB_RECONNECT_ATTEMPTS', DEFAULT_DB_RECONNECT_ATTEMPTS)
+  const baseDelayMs = readPositiveEnvInt('CLEANUP_DB_RECONNECT_DELAY_MS', DEFAULT_DB_RECONNECT_DELAY_MS)
+  const maxDelayMs = readPositiveEnvInt('CLEANUP_DB_RECONNECT_MAX_DELAY_MS', DEFAULT_DB_RECONNECT_MAX_DELAY_MS)
+
+  async function withReconnect(operation, operationName) {
+    let retries = 0
+
+    while (true) {
+      const activeClient = client
+      try {
+        return await operation(activeClient)
+      } catch (error) {
+        if (!isReconnectableDatabaseError(error) || retries >= maxAttempts) {
+          if (isReconnectableDatabaseError(error)) {
+            hooks.onReconnectFailed?.({
+              operation: operationName,
+              attempts: retries,
+              maxAttempts,
+              error: errorMessage(error)
+            })
+          }
+          throw error
+        }
+
+        retries += 1
+        const delayMs = reconnectDelayMs(retries, baseDelayMs, maxDelayMs)
+        hooks.onReconnect?.({
+          operation: operationName,
+          attempt: retries,
+          maxAttempts,
+          delayMs,
+          error: errorMessage(error)
+        })
+        await reconnect(activeClient, delayMs)
+      }
+    }
+  }
+
+  async function reconnect(failedClient, delayMs) {
+    if (failedClient !== client) return
+
+    if (!reconnectPromise) {
+      reconnectPromise = (async () => {
+        await failedClient.$disconnect().catch(() => {})
+        if (delayMs > 0) await sleep(delayMs)
+        client = new PrismaClient()
+      })().finally(() => {
+        reconnectPromise = null
+      })
+    }
+
+    await reconnectPromise
+  }
+
+  async function disconnect() {
+    if (reconnectPromise) await reconnectPromise
+    await client.$disconnect().catch(() => {})
+  }
+
+  return new Proxy({}, {
+    get(_target, property) {
+      if (property === 'then') return undefined
+      if (property === '$disconnect') return disconnect
+      if (property === Symbol.toStringTag) return 'ReconnectablePrismaClient'
+
+      const currentValue = client[property]
+      if (typeof currentValue === 'function') {
+        return (...args) => withReconnect(
+          (activeClient) => activeClient[property](...args),
+          String(property)
+        )
+      }
+
+      if (currentValue && typeof currentValue === 'object') {
+        return createReconnectablePrismaDelegate(property, withReconnect)
+      }
+
+      return currentValue
+    }
+  })
+}
+
+function createReconnectablePrismaDelegate(delegateName, withReconnect) {
+  return new Proxy({}, {
+    get(_target, property) {
+      if (property === 'then') return undefined
+      if (property === Symbol.toStringTag) return String(delegateName)
+      return (...args) => withReconnect(
+        (activeClient) => activeClient[delegateName][property](...args),
+        `${String(delegateName)}.${String(property)}`
+      )
+    }
+  })
+}
+
+function reconnectDelayMs(attempt, baseDelayMs, maxDelayMs) {
+  return Math.min(baseDelayMs * (2 ** Math.max(attempt - 1, 0)), maxDelayMs)
+}
+
+function readPositiveEnvInt(name, fallback) {
+  const parsed = Number(process.env[name] || '')
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function isReconnectableDatabaseError(error) {
+  const message = errorMessage(error)
+  return ['P1001', 'P1002', 'P1017', 'P2024'].includes(error?.code) ||
+    /Can't reach database server/i.test(message) ||
+    /Timed out fetching a new connection/i.test(message) ||
+    /Error in the underlying connector/i.test(message) ||
+    /connection.*closed/i.test(message) ||
+    /connection.*terminated/i.test(message) ||
+    /socket.*closed/i.test(message) ||
+    /ECONNRESET|ETIMEDOUT|PROTOCOL_CONNECTION_LOST/i.test(message)
+}
+
+function isRecordNotFoundError(error) {
+  const message = errorMessage(error)
+  return error?.code === 'P2025' ||
+    /record to delete does not exist/i.test(message) ||
+    /RecordNotFound/i.test(message)
 }
 
 export function parseArgs(args) {
