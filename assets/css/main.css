@@ -270,6 +270,10 @@ html[data-theme='dark'] .density-control__button.is-active {
   color: #101218;
 }
 
+.feed-sort-control .density-control__button {
+  min-width: 44px;
+}
+
 .avatar-button {
   display: inline-flex;
   align-items: center;
@@ -715,6 +719,18 @@ html[data-theme='dark'] .density-control__button.is-active {
 
   .density-control {
     display: none;
+  }
+
+  .feed-sort-control {
+    display: inline-flex;
+    height: 32px;
+  }
+
+  .feed-sort-control .density-control__button {
+    min-width: 0;
+    height: 26px;
+    padding: 0 6px;
+    font-size: 12px;
   }
 
   .gallery {

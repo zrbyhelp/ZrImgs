@@ -33,11 +33,14 @@
 </template>
 
 <script setup lang="ts">
+type GalleryFeedSort = 'recommended' | 'latest' | 'popular'
+
 const route = useRoute()
 const session = useState<any>('session', () => ({ user: null, admin: null }))
 const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
 const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
 const searchQuery = useState<string>('gallerySearchQuery', () => '')
+const galleryFeedSort = useState<GalleryFeedSort>('galleryFeedSort', () => 'recommended')
 
 const FEED_PAGE_LIMIT = 28
 
@@ -47,6 +50,7 @@ const hasMore = ref(true)
 const loading = ref(false)
 const redirecting = ref(false)
 const error = ref('')
+const rankingSeed = ref('')
 const activeGroupPrompt = ref<string | null>(null)
 const activeGroupItemId = ref<string | null>(null)
 const activeImageIndex = ref(0)
@@ -73,6 +77,11 @@ watch(favoritesOnly, async () => {
 })
 
 watch(searchQuery, async () => {
+  closeLightbox()
+  await refreshFeed()
+})
+
+watch(galleryFeedSort, async () => {
   closeLightbox()
   await refreshFeed()
 })
@@ -143,11 +152,13 @@ async function loadMore() {
       query: {
         page: page.value,
         limit: FEED_PAGE_LIMIT,
+        sort: galleryFeedSort.value,
         favorites: favoritesOnly.value ? 1 : undefined,
         q: searchQuery.value || undefined
       }
     })
     userFavoriteCount.value = Number(data.favoriteCount || 0)
+    rankingSeed.value = String(data.rankingSeed || rankingSeed.value || '')
     const existing = new Set(items.value.map(promptGroupKey))
     items.value.push(...data.items.filter((item: any) => !existing.has(promptGroupKey(item))))
     hasMore.value = data.hasMore
@@ -219,7 +230,8 @@ function applyFavoriteUpdate(id: string, data: any) {
   userFavoriteCount.value = Number(data.userFavoriteCount || userFavoriteCount.value)
   const changed = applyItemUpdate(id, {
     isFavorited: Boolean(data.isFavorited),
-    favoriteCount: Number(data.favoriteCount || 0)
+    favoriteCount: Number(data.favoriteCount || 0),
+    feedScore: null
   })
 
   if (!changed) return
@@ -283,13 +295,68 @@ function removeDeletedItem(id: string) {
 }
 
 function compareFeedItems(a: any, b: any) {
+  if (galleryFeedSort.value === 'latest') {
+    return compareLatest(a, b)
+  }
+
+  if (galleryFeedSort.value === 'popular') {
+    return comparePopular(a, b)
+  }
+
+  const scoreDiff = recommendationScore(b) - recommendationScore(a)
+  if (Math.abs(scoreDiff) > 0.000001) return scoreDiff
+
+  return comparePopular(a, b)
+}
+
+function comparePopular(a: any, b: any) {
   const favoriteDiff = Number(b.favoriteCount || 0) - Number(a.favoriteCount || 0)
   if (favoriteDiff !== 0) return favoriteDiff
 
+  return compareLatest(a, b)
+}
+
+function compareLatest(a: any, b: any) {
   const createdDiff = new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
   if (createdDiff !== 0) return createdDiff
 
   return String(b.id || '').localeCompare(String(a.id || ''))
+}
+
+function recommendationScore(item: any) {
+  if (item.feedScore !== null && item.feedScore !== undefined && item.feedScore !== '' && Number.isFinite(Number(item.feedScore))) {
+    return Number(item.feedScore)
+  }
+
+  const favoriteScore = Math.min(Math.log10(Number(item.favoriteCount || 0) + 1), 1.6) * 0.5
+  const createdAt = new Date(item.createdAt || 0).getTime()
+  const ageHours = Math.max((Date.now() - createdAt) / 36e5, 0)
+  const freshnessScore = (1 / (1 + ageHours / 72)) * 0.35
+  const randomScore = dailyRandomScore(item) * 0.15
+
+  return favoriteScore + freshnessScore + randomScore
+}
+
+function dailyRandomScore(item: any) {
+  const seed = rankingSeed.value || fallbackRankingSeed()
+  return crc32(`${seed}:${String(item?.id || '')}`) / 0xffffffff
+}
+
+function fallbackRankingSeed() {
+  const now = new Date()
+  const local = new Date(now.getTime() + 8 * 60 * 60 * 1000)
+  return `${local.toISOString().slice(0, 10)}:local`
+}
+
+function crc32(value: string) {
+  let crc = 0xffffffff
+  for (let index = 0; index < value.length; index += 1) {
+    crc ^= value.charCodeAt(index)
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 function openItem(item: any) {

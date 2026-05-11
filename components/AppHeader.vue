@@ -20,6 +20,20 @@
       </form>
 
       <div class="header-actions">
+        <div class="density-control feed-sort-control" role="group" aria-label="排序方式">
+          <button
+            v-for="option in feedSortOptions"
+            :key="option.value"
+            class="density-control__button"
+            :class="{ 'is-active': galleryFeedSort === option.value }"
+            type="button"
+            :title="option.title"
+            :aria-pressed="galleryFeedSort === option.value"
+            @click="galleryFeedSort = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
         <div class="density-control" role="group" aria-label="列表密度">
           <button
             v-for="option in densityOptions"
@@ -94,6 +108,7 @@ import {
 } from 'lucide-vue-next'
 
 type GalleryDensity = 'regular' | 'compact' | 'dense'
+type GalleryFeedSort = 'recommended' | 'latest' | 'popular'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -107,7 +122,13 @@ const favoritesOnly = useState<boolean>('favoritesOnly', () => false)
 const userFavoriteCount = useState<number>('userFavoriteCount', () => 0)
 const searchDraft = useState<string>('gallerySearchDraft', () => '')
 const searchQuery = useState<string>('gallerySearchQuery', () => '')
+const galleryFeedSort = useState<GalleryFeedSort>('galleryFeedSort', () => 'recommended')
 const galleryDensity = useState<GalleryDensity>('galleryDensity', () => 'regular')
+const feedSortOptions = [
+  { value: 'recommended', label: '推荐', title: '推荐排序' },
+  { value: 'latest', label: '最新', title: '最新优先' },
+  { value: 'popular', label: '热门', title: '热门优先' }
+] satisfies Array<{ value: GalleryFeedSort, label: string, title: string }>
 const densityOptions = [
   { value: 'regular', label: '常规', title: '常规密度' },
   { value: 'compact', label: '中高', title: '中高密度' },
@@ -123,6 +144,7 @@ const feedbackUrl = computed(() => {
 
 onMounted(async () => {
   initTheme()
+  initGalleryFeedSort()
   initGalleryDensity()
   await refreshSession()
 
@@ -141,6 +163,11 @@ onMounted(async () => {
 watch(galleryDensity, (value) => {
   if (!import.meta.client) return
   localStorage.setItem('galleryDensity', value)
+})
+
+watch(galleryFeedSort, (value) => {
+  if (!import.meta.client) return
+  localStorage.setItem('galleryFeedSort', value)
 })
 
 async function refreshSession() {
@@ -163,8 +190,19 @@ function initGalleryDensity() {
   }
 }
 
+function initGalleryFeedSort() {
+  const stored = localStorage.getItem('galleryFeedSort')
+  if (isGalleryFeedSort(stored)) {
+    galleryFeedSort.value = stored
+  }
+}
+
 function isGalleryDensity(value: string | null): value is GalleryDensity {
   return value === 'regular' || value === 'compact' || value === 'dense'
+}
+
+function isGalleryFeedSort(value: string | null): value is GalleryFeedSort {
+  return value === 'recommended' || value === 'latest' || value === 'popular'
 }
 
 function toggleTheme() {
