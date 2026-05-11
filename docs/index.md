@@ -68,3 +68,26 @@ curl -X POST "http://localhost:3001/api/uploads/third-party" \
 | `413` | 上传图片总大小超过限制。 |
 
 失败响应会通过 `statusMessage` 返回可读原因，第三方服务可直接记录到自己的上传日志中。
+
+## 捐赠
+
+<div class="donation-images">
+  <img src="../捐赠/微信图片_20260511124938_184_76.jpg" alt="捐赠图片 1">
+  <img src="../捐赠/微信图片_20260511124939_185_76.jpg" alt="捐赠图片 2">
+</div>
+
+<style>
+.donation-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.donation-images img {
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+</style>
