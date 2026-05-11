@@ -1,12 +1,11 @@
 FROM node:20-bookworm-slim AS base
 
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+ARG PNPM_VERSION=10.15.1
 
 WORKDIR /app
 
-RUN corepack enable
+RUN npm install -g pnpm@${PNPM_VERSION} \
+  && npm cache clean --force
 
 FROM base AS deps
 
