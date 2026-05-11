@@ -39,6 +39,19 @@ pnpm dev
 pnpm docs:build
 ```
 
+## 捐赠
+
+如果这个项目对你有帮助，欢迎通过以下方式支持维护。
+
+<p>
+  <img src="./捐赠/微信图片_20260511124938_184_76.jpg" alt="捐赠图片 1" width="260">
+  <img src="./捐赠/微信图片_20260511124939_185_76.jpg" alt="捐赠图片 2" width="260">
+</p>
+
+## 鸣谢
+
+认可并感谢 LINUX DO 社区对开源交流与分享氛围的推动。
+
 ## Docker 部署
 
 服务器安装 Docker 和 Docker Compose 后，复制 `.env.example` 为 `.env` 并修改 `SESSION_SECRET`、MySQL 密码、统一登录配置和管理员账号。
